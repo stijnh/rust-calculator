@@ -52,7 +52,7 @@ impl Expr {
                         None => 0.0
                     },
                     _ => fail!(fmt!(
-                            "unknown function '%?' or wrong number of arguments", 
+                            "unknown function '%?' or wrong number of arguments",
                             fun))
                 }
             }
@@ -66,16 +66,21 @@ pub fn parse(lexer:&Lexer) -> ~Expr {
     res
 }
 
+fn op_prec(op:Op) -> int {
+    match op {
+        Add | Sub => 0,
+        Mul | Div | Mod => 1
+    }
+}
+
 fn parse_binop(lexer:&Lexer, prec:int) -> ~Expr {
     let mut expr = parse_monop(lexer);
 
     loop {
         expr = match *lexer.next() {
-            Operator(Add) if prec <= 0 => ~BinOp(expr, Add, parse_binop(lexer, 1)),
-            Operator(Sub) if prec <= 0 => ~BinOp(expr, Sub, parse_binop(lexer, 1)),
-            Operator(Mul) if prec <= 1 => ~BinOp(expr, Mul, parse_binop(lexer, 2)),
-            Operator(Div) if prec <= 1 => ~BinOp(expr, Div, parse_binop(lexer, 2)),
-            Operator(Mod) if prec <= 1 => ~BinOp(expr, Mod, parse_binop(lexer, 2)),
+            Operator(p) if prec <= op_prec(p) => {
+                ~BinOp(expr, p, parse_binop(lexer, op_prec(p)+1))
+            }
             _ => break
         }
     }

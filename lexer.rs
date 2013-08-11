@@ -92,5 +92,9 @@ impl Lexer {
 }
 
 pub fn lex(input:&str) -> ~Lexer {
-    ~Lexer {input: input.to_owned(), pos: @mut 0, prev_pos: @mut 0}
+    ~Lexer {
+        input: input.to_owned(),
+        pos: @mut 0,
+        prev_pos: @mut 0
+    }
 }
