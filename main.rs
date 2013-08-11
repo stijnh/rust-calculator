@@ -11,12 +11,20 @@ fn main() {
     match args {
         [_, input] => {
             let tokens = lex(input);
-            println(fmt!("tokens: %?", tokens));
             let expr = parse(tokens);
-            println(fmt!("expr: %?", expr));
             let res = expr.eval();
-            println(fmt!("res: %?", res));
+            println(fmt!("%?", res));
         }
-        _ => fail!(fmt!("usage: %s <expr>", args[0]))
+        [bin, .. _] => {
+            println(fmt!("usage: %s <expr>", bin));
+            println("");
+            println("examples: ");
+            println(fmt!("%s 1+1", bin));
+            println(fmt!("%s max(1,2,3)", bin));
+            println(fmt!("%s cos(2*pi)", bin));
+            println(fmt!("%s abs(max(-5, -3))", bin));
+            println(fmt!("%s e+(3*5)", bin));
+        },
+        _ => {}
     }
 }

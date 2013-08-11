@@ -1,4 +1,6 @@
-use lexer::{Token, LeftParen, RightParen, Number, Ident, Operator, End};
+use lexer::{Comma, LeftParen, RightParen, Number, Ident, Operator, End};
+use lexer::Lexer;
+use std::float::consts;
 
 #[deriving(Eq)]
 pub enum Op {
@@ -6,13 +8,13 @@ pub enum Op {
 }
 
 pub enum Expr {
-    Const(int),
+    Const(float),
     BinOp(~Expr, Op, ~Expr),
-    FunCall(~str, ~Expr)
+    FunCall(~str, ~[~Expr])
 }
 
 impl Expr {
-    fn eval(&self) -> int {
+    fn eval(&self) -> float {
         match *self {
             Const(x) => x,
             BinOp(ref l, op, ref r) => {
@@ -27,76 +29,98 @@ impl Expr {
                     Mod => a % b
                 }
             },
-            FunCall(*) => {
-                //let a = arg.eval();
-                fail!("function calls are not supported yet");
+            FunCall(ref fun, ref args) => {
+                let arr = args.map(|e| e.eval());
+
+                match (fun.to_owned(), arr) {
+                    (~"pi", []) => consts::pi,
+                    (~"e", []) => consts::e,
+                    (~"log", [x]) => x.log10(),
+                    (~"log", [x, base]) => x.log(&base),
+                    (~"exp", [x]) => x.exp(),
+                    (~"sin", [x]) => x.sin(),
+                    (~"cos", [x]) => x.cos(),
+                    (~"tan", [x]) => x.tan(),
+                    (~"sqrt", [x]) => x.sqrt(),
+                    (~"abs", [x]) => x.abs(),
+                    (~"max", x) => match x.iter().max() {
+                        Some(x) => *x,
+                        None => 0.0
+                    },
+                    (~"min", x) => match x.iter().min() {
+                        Some(x) => *x,
+                        None => 0.0
+                    },
+                    _ => fail!(fmt!(
+                            "unknown function '%?' or wrong number of arguments", 
+                            fun))
+                }
             }
         }
     }
 }
 
-pub fn parse(tokens:&[Token]) -> ~Expr {
-    let mut i = 0;
-    let res = parse_prec(tokens, &mut i, 0);
-    if tokens[i] != End {
-        fail!(fmt!("unexpected %?, expecting <End>", tokens[i]));
-    }
+pub fn parse(lexer:&Lexer) -> ~Expr {
+    let res = parse_binop(lexer, 0);
+    lexer.next_expect(~End);
     res
 }
 
-
-fn parse_prec(tokens:&[Token], i:&mut int, prec:int) -> ~Expr {
-    let mut expr = match tokens[*i] {
-        LeftParen => {
-            *i += 1;
-            let expr = parse_prec(tokens, i, 0);
-            if tokens[*i] != RightParen {
-                fail!(fmt!("unexpected %?, expecting ')'", tokens[*i]));
-            }
-            *i += 1;
-            expr
-        },
-        Number(x) => {
-            *i += 1;
-            ~Const(x)
-        }
-        Ident(ref fun) => {
-            *i += 1;
-            if tokens[*i] != LeftParen {
-                fail!(fmt!("unexpected %?, expecting '('", tokens[*i]));
-            }
-            *i += 1;
-            let arg = parse_prec(tokens, i, 0);
-            if tokens[*i] != RightParen {
-                fail!(fmt!("unexpected %?, expecting ')'", tokens[*i]));
-            }
-            *i += 1;
-            ~FunCall(copy *fun, arg)
-        },
-        Operator(Add) => {
-            *i += 1;
-            parse_prec(tokens, i, prec)
-        },
-        Operator(Sub) => {
-            *i += 1;
-            let expr = parse_prec(tokens, i, prec);
-            ~BinOp(~Const(0), Sub, expr)
-
-        },
-        _ => fail!(fmt!("unexpected %?", tokens[*i]))
-    };
+fn parse_binop(lexer:&Lexer, prec:int) -> ~Expr {
+    let mut expr = parse_monop(lexer);
 
     loop {
-        *i += 1;
-        expr = match tokens[*i - 1] {
-            Operator(Add) if prec <= 0 => ~BinOp(expr, Add, parse_prec(tokens, i, 1)),
-            Operator(Sub) if prec <= 0 => ~BinOp(expr, Sub, parse_prec(tokens, i, 1)),
-            Operator(Mul) if prec <= 1 => ~BinOp(expr, Mul, parse_prec(tokens, i, 2)),
-            Operator(Div) if prec <= 1 => ~BinOp(expr, Div, parse_prec(tokens, i, 2)),
-            Operator(Mod) if prec <= 1 => ~BinOp(expr, Mod, parse_prec(tokens, i, 2)),
+        expr = match *lexer.next() {
+            Operator(Add) if prec <= 0 => ~BinOp(expr, Add, parse_binop(lexer, 1)),
+            Operator(Sub) if prec <= 0 => ~BinOp(expr, Sub, parse_binop(lexer, 1)),
+            Operator(Mul) if prec <= 1 => ~BinOp(expr, Mul, parse_binop(lexer, 2)),
+            Operator(Div) if prec <= 1 => ~BinOp(expr, Div, parse_binop(lexer, 2)),
+            Operator(Mod) if prec <= 1 => ~BinOp(expr, Mod, parse_binop(lexer, 2)),
             _ => break
         }
     }
-    *i -= 1;
+
+    lexer.back();
     expr
+}
+
+fn parse_monop(lexer:&Lexer) -> ~Expr {
+    match *lexer.next() {
+        Operator(Sub) => ~BinOp(~Const(0.0), Sub, parse_monop(lexer)),
+        Operator(Add) => parse_monop(lexer),
+        _ => {
+            lexer.back();
+            parse_prim(lexer)
+        }
+    }
+}
+
+fn parse_prim(lexer:&Lexer) -> ~Expr {
+    match *lexer.next() {
+        Number(x) => ~Const(x),
+        LeftParen => {
+            let expr = parse_binop(lexer, 0);
+            lexer.next_expect(~RightParen);
+            expr
+        }
+        Ident(ref name) => {
+            let mut args = ~[];
+
+            if lexer.next() == ~LeftParen {
+                args.push(parse_binop(lexer, 0));
+
+                while lexer.next() == ~Comma {
+                    args.push(parse_binop(lexer, 0));
+                }
+
+                lexer.back();
+                lexer.next_expect(~RightParen);
+            } else {
+                lexer.back();
+            }
+
+            ~FunCall(name.to_owned(), args)
+        },
+        t => fail!(fmt!("unexpected token %?", t))
+    }
 }
