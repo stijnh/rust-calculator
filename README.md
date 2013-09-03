@@ -23,7 +23,7 @@ Note that parentheses are optional for nullary functions, so `pi()` can also be 
 $ ./calc 42
 42
 $ ./calc sin(2 * pi)
-1
+0
 $ ./calc abs(max(-3.2, -5.7))
 3.2
 $ ./calc log(e, e)
