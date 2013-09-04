@@ -1,6 +1,6 @@
 # Rust calculator
 
-Simple command-line based calculator written in Rust. Supports basic arithmetic floating-point operations (addition, subtaction, multiplication, division, modulo) and the following functions:
+Simple command-line based calculator written in Rust. Supports basic arithmetic floating-point operations (addition, subtraction, multiplication, division, modulo) and the following functions:
 
 * `pi()`
 * `e()`
@@ -28,4 +28,6 @@ $ ./calc abs(max(-3.2, -5.7))
 3.2
 $ ./calc log(e, e)
 1
+$ ./calc 2 * (max(1, 2) + min(1, 2))
+6
 ```
