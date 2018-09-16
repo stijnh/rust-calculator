@@ -77,9 +77,14 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
     Ok(Value::Number(y))
 }
 
-fn evaluate_node(node: &Node, ctx: &Context) -> Result<Value, EvalError> {
+fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
     match node {
         Node::Immediate(val) => Ok(val.clone()),
+        Node::Store(key, arg) => {
+            let val = evaluate_node(arg, ctx)?;
+            ctx.set(key, val.clone());
+            Ok(val)
+        },
         Node::Load(var) => {
             if let Some(val) = ctx.get(var) {
                 Ok(val)
@@ -99,6 +104,6 @@ fn evaluate_node(node: &Node, ctx: &Context) -> Result<Value, EvalError> {
     }
 }
 
-pub fn evaluate(root: &Node, ctx: &Context) -> Result<Value, EvalError> {
+pub fn evaluate(root: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
     evaluate_node(root, ctx)
 }

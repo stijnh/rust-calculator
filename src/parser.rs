@@ -1,6 +1,7 @@
 use eval::Value;
 pub use lexer::Op;
-use lexer::{Lexer, Span, Token};
+use lexer::{Lexer, Token};
+pub use lexer::Span;
 use std::f64;
 
 #[derive(Clone, Debug)]
@@ -9,6 +10,7 @@ pub enum Node {
     MonOp(Op, Box<Node>),
     BinOp(Op, Box<Node>, Box<Node>),
     Load(String),
+    Store(String, Box<Node>)
 }
 
 #[derive(Debug)]
@@ -90,11 +92,23 @@ fn parse_expr(lexer: &mut Lexer) -> Result<Node, ParseError> {
     parse_binop(lexer, 0)
 }
 
-pub fn parse(mut lexer: Lexer) -> Result<Node, ParseError> {
-    let out = parse_expr(&mut lexer)?;
+fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
+    let lhs = parse_expr(lexer)?;
+    let out = match (lhs, lexer.peek()) {
+        (Node::Load(var), Token::Assign) => {
+            lexer.next();
+            let val = parse_expr(lexer)?;
+            Node::Store(var, Box::new(val))
+        },
+        (out, _) => out
+    };
 
     match lexer.peek() {
         Token::End => Ok(out),
-        _ => unexpected_token(&lexer),
+        _ => unexpected_token(lexer)
     }
+}
+
+pub fn parse(mut lexer: Lexer) -> Result<Node, ParseError> {
+    parse_statement(&mut lexer)
 }

@@ -15,6 +15,7 @@ pub enum Token {
     LeftParen,
     RightParen,
     Comma,
+    Assign,
     Unknown(char),
     Number(String),
     Ident(String),
@@ -39,6 +40,7 @@ impl Token {
             Token::LeftParen => "(",
             Token::RightParen => ")",
             Token::Comma => ",",
+            Token::Assign => "=",
             Token::Number(x) => x,
             Token::Ident(x) => x,
             Token::Unknown(c) => return c.to_string(),
@@ -49,7 +51,7 @@ impl Token {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Span(usize, usize);
+pub struct Span(pub usize, pub usize);
 
 struct CharStream<'a> {
     index: usize,
@@ -115,6 +117,7 @@ impl Lexer {
             '(' => Token::LeftParen,
             ')' => Token::RightParen,
             ',' => Token::Comma,
+            '=' => Token::Assign,
             '+' => Token::Operator(Op::Add),
             '-' => Token::Operator(Op::Sub),
             '*' => Token::Operator(Op::Mul),
