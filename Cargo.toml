@@ -1,0 +1,6 @@
+[package]
+name = "calculator"
+version = "0.1.0"
+authors = ["stijnh <mail@stijnh.nl>"]
+
+[dependencies]
