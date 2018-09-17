@@ -1,7 +1,7 @@
 use eval::Value;
 pub use lexer::Op;
-use lexer::{Lexer, Token};
 pub use lexer::Span;
+use lexer::{Lexer, Token};
 use std::f64;
 
 #[derive(Clone, Debug)]
@@ -11,7 +11,7 @@ pub enum Node {
     BinOp(Op, Box<Node>, Box<Node>),
     Apply(Box<Node>, Vec<Node>),
     Load(String),
-    Store(String, Box<Node>)
+    Store(String, Box<Node>),
 }
 
 #[derive(Debug)]
@@ -34,6 +34,8 @@ fn unexpected_prev_token(lexer: &mut Lexer) -> Result<Node, ParseError> {
 
 fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
     match lexer.next() {
+        Token::True => Ok(Node::Immediate(Value::Boolean(true))),
+        Token::False => Ok(Node::Immediate(Value::Boolean(false))),
         Token::Ident(name) => Ok(Node::Load(name)),
         Token::Number(num) => {
             if let Ok(x) = num.parse() {
@@ -83,7 +85,7 @@ fn parse_apply(lexer: &mut Lexer) -> Result<Node, ParseError> {
 
 fn parse_monop(lexer: &mut Lexer) -> Result<Node, ParseError> {
     if let Token::Operator(op) = lexer.peek() {
-        if op == Op::Add || op == Op::Sub {
+        if op == Op::Add || op == Op::Sub || op == Op::Not {
             lexer.next();
             let arg = parse_monop(lexer)?;
             return Ok(Node::MonOp(op, Box::new(arg)));
@@ -95,8 +97,12 @@ fn parse_monop(lexer: &mut Lexer) -> Result<Node, ParseError> {
 
 fn op_prec(op: Op) -> i32 {
     match op {
-        Op::Add | Op::Sub => 1,
-        Op::Mul | Op::Div => 2,
+        Op::Or => 1,
+        Op::And => 2,
+        Op::Lt | Op::Gt | Op::Lte | Op::Gte => 3,
+        Op::Eq | Op::Neq => 4,
+        Op::Add | Op::Sub => 5,
+        Op::Mul | Op::Div => 6,
         _ => -1,
     }
 }
@@ -127,13 +133,13 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
             lexer.next();
             let val = parse_expr(lexer)?;
             Node::Store(var, Box::new(val))
-        },
-        (out, _) => out
+        }
+        (out, _) => out,
     };
 
     match lexer.peek() {
         Token::End => Ok(out),
-        _ => unexpected_token(lexer)
+        _ => unexpected_token(lexer),
     }
 }
 

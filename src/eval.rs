@@ -1,24 +1,45 @@
-use std::fmt;
-use std::rc::Rc;
 use parser::{Node, Op};
 use std::collections::HashMap;
+use std::fmt;
+use std::rc::Rc;
 
 pub trait Func {
     fn name(&self) -> Option<&str>;
     fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError>;
-} 
+}
 
 #[derive(Clone)]
 pub enum Value {
     Number(f64),
-    Function(Rc<Box<Func>>)
+    Boolean(bool),
+    Function(Rc<Box<Func>>),
+}
+
+impl Value {
+    fn as_number(&self) -> Option<f64> {
+        match self {
+            Value::Number(x) => Some(*x),
+            Value::Boolean(true) => Some(1.0),
+            Value::Boolean(false) => Some(0.0),
+            _ => None,
+        }
+    }
+
+    fn as_bool(&self) -> Option<bool> {
+        match self {
+            Value::Boolean(x) => Some(*x),
+            Value::Number(x) => Some(*x != 0.0),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Value::Number(x) => write!(f, "Number({:?})", x),
-            Value::Function(_) => write!(f, "Function(...)")
+            Value::Boolean(x) => write!(f, "Boolean({:?})", x),
+            Value::Function(_) => write!(f, "Function(...)"),
         }
     }
 }
@@ -64,8 +85,8 @@ impl<'a> Context<'a> {
 }
 
 fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> {
-    let (x, y) = match (lhs, rhs) {
-        (Value::Number(x), Value::Number(y)) => (x, y),
+    let (x, y) = match (lhs.as_number(), rhs.as_number()) {
+        (Some(x), Some(y)) => (x, y),
         _ => return Err(EvalError(format!("invalid cast to number"))),
     };
 
@@ -74,6 +95,12 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
         Op::Sub => x - y,
         Op::Mul => x * y,
         Op::Div => x / y,
+        _ => {
+            return Err(EvalError(format!(
+                "invalid binary operator '{}'",
+                op.name()
+            )))
+        }
     };
 
     Ok(Value::Number(z))
@@ -110,7 +137,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             let val = evaluate_node(arg, ctx)?;
             ctx.set(key, val.clone());
             Ok(val)
-        },
+        }
         Node::Load(var) => {
             if let Some(val) = ctx.get(var) {
                 Ok(val)
@@ -130,7 +157,9 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
         Node::Apply(fun, args) => {
             let f = evaluate_node(fun, ctx)?;
             let mut vals = vec![];
-            for arg in args { vals.push(evaluate_node(arg, ctx)?); }
+            for arg in args {
+                vals.push(evaluate_node(arg, ctx)?);
+            }
             evaluate_apply(&f, &vals)
         }
     }

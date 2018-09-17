@@ -2,16 +2,15 @@ use std::io;
 use std::io::prelude::*;
 
 mod eval;
+mod funcs;
 mod lexer;
 mod parser;
-mod funcs;
 
-use eval::{evaluate, Value, Context, EvalError};
+use eval::{evaluate, Context, EvalError, Value};
 use lexer::tokenize;
-use parser::{parse, Span, ParseError};
+use parser::{parse, ParseError, Span};
 
 fn print_parse_error(line: &str, err: &ParseError) {
-
     eprint!("{}", line);
 
     let Span(a, b) = err.span;
@@ -39,6 +38,8 @@ fn execute_line(line: &str, ctx: &mut Context) {
         }
     };
 
+    println!("{:?}", root);
+
     let val = match evaluate(&root, ctx) {
         Ok(x) => x,
         Err(EvalError(msg)) => {
@@ -50,12 +51,13 @@ fn execute_line(line: &str, ctx: &mut Context) {
     match val {
         Value::Number(x) => {
             println!(" {:?}", x);
+        }
+        Value::Function(f) => match f.name() {
+            Some(s) => println!(" <function: {}>", s),
+            None => println!(" <function>"),
         },
-        Value::Function(f) => {
-            match f.name() {
-                Some(s) => println!(" <function: {}>", s),
-                None => println!(" <function>")
-            }
+        Value::Boolean(b) => {
+            println!(" {:?}", b);
         }
     }
 }

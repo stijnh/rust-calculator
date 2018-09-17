@@ -8,10 +8,21 @@ pub enum Op {
     Sub,
     Mul,
     Div,
+    Eq,
+    Neq,
+    Lt,
+    Gt,
+    Lte,
+    Gte,
+    Not,
+    And,
+    Or,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
+    True,
+    False,
     LeftParen,
     RightParen,
     Comma,
@@ -30,6 +41,15 @@ impl Op {
             Op::Sub => "-",
             Op::Mul => "*",
             Op::Div => "/",
+            Op::Eq => "==",
+            Op::Neq => "!=",
+            Op::Lt => "<",
+            Op::Gt => ">",
+            Op::Lte => "<=",
+            Op::Gte => ">=",
+            Op::Not => "not",
+            Op::And => "and",
+            Op::Or => "or",
         }.into()
     }
 }
@@ -45,6 +65,8 @@ impl Token {
             Token::Ident(x) => x,
             Token::Unknown(c) => return c.to_string(),
             Token::Operator(x) => return x.name(),
+            Token::True => "true",
+            Token::False => "false",
             Token::End => "<end>",
         }.into()
     }
@@ -98,7 +120,14 @@ impl Lexer {
                 c = stream.peek()
             }
 
-            return Token::Ident(buffer);
+            return match buffer.as_ref() {
+                "and" => Token::Operator(Op::And),
+                "or" => Token::Operator(Op::Or),
+                "not" => Token::Operator(Op::Not),
+                "true" => Token::True,
+                "false" => Token::False,
+                _ => Token::Ident(buffer),
+            };
         }
 
         if Self::DIGITS.contains(c) {
@@ -113,7 +142,24 @@ impl Lexer {
             return Token::Number(buffer);
         }
 
-        match stream.next() {
+        stream.next();
+
+        {
+            let tok = match (c, stream.peek()) {
+                ('=', '=') => Token::Operator(Op::Eq),
+                ('!', '=') => Token::Operator(Op::Neq),
+                ('<', '=') => Token::Operator(Op::Lte),
+                ('>', '=') => Token::Operator(Op::Gte),
+                _ => Token::End,
+            };
+
+            if tok != Token::End {
+                stream.next();
+                return tok;
+            }
+        }
+
+        match c {
             '(' => Token::LeftParen,
             ')' => Token::RightParen,
             ',' => Token::Comma,
@@ -122,6 +168,8 @@ impl Lexer {
             '-' => Token::Operator(Op::Sub),
             '*' => Token::Operator(Op::Mul),
             '/' => Token::Operator(Op::Div),
+            '>' => Token::Operator(Op::Gt),
+            '<' => Token::Operator(Op::Lt),
             c => Token::Unknown(c),
         }
     }

@@ -1,15 +1,16 @@
-use std::rc::Rc;
-use eval::{Value, Context, Func, EvalError};
+use eval::{Context, EvalError, Func, Value};
 use std::f64::consts;
+use std::rc::Rc;
 
 fn set_const(ctx: &mut Context, key: &str, val: f64) {
     ctx.set(key, Value::Number(val))
 }
 
 struct ClosureFunction<F>(String, F);
-impl <F> Func for ClosureFunction<F> 
-    where F: Fn(&Vec<Value>) -> Result<Value, EvalError> {
-
+impl<F> Func for ClosureFunction<F>
+where
+    F: Fn(&Vec<Value>) -> Result<Value, EvalError>,
+{
     fn name(&self) -> Option<&str> {
         Some(&self.0)
     }
@@ -19,19 +20,21 @@ impl <F> Func for ClosureFunction<F>
     }
 }
 
-fn set_unary<F: 'static>(ctx: &mut Context, key: &str, fun: F) 
-    where F: Fn(f64) -> f64 {
-
+fn set_unary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
+where
+    F: Fn(f64) -> f64,
+{
     let f = ClosureFunction(key.to_string(), move |args: &Vec<Value>| {
         if args.len() != 1 {
             return Err(EvalError(format!(
-                        "expected 1 argument, {} arguments given",
-                        args.len())));
+                "expected 1 argument, {} arguments given",
+                args.len()
+            )));
         }
 
         let x = match args[0] {
             Value::Number(x) => x,
-            _ => return Err(EvalError("invalid cast to number".into()))
+            _ => return Err(EvalError("invalid cast to number".into())),
         };
 
         Ok(Value::Number(fun(x)))
@@ -40,19 +43,21 @@ fn set_unary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
     ctx.set(key, Value::Function(Rc::new(Box::new(f))));
 }
 
-fn set_binary<F: 'static>(ctx: &mut Context, key: &str, fun: F) 
-    where F: Fn(f64, f64) -> f64 {
-
+fn set_binary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
+where
+    F: Fn(f64, f64) -> f64,
+{
     let f = ClosureFunction(key.to_string(), move |args: &Vec<Value>| {
         if args.len() != 2 {
             return Err(EvalError(format!(
-                        "expected 1 argument, {} arguments given",
-                        args.len())));
+                "expected 1 argument, {} arguments given",
+                args.len()
+            )));
         }
 
         let (x, y) = match (&args[0], &args[1]) {
             (Value::Number(x), Value::Number(y)) => (*x, *y),
-            _ => return Err(EvalError("invalid cast to number".into()))
+            _ => return Err(EvalError("invalid cast to number".into())),
         };
 
         Ok(Value::Number(fun(x, y)))
