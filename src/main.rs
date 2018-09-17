@@ -4,6 +4,7 @@ use std::io::prelude::*;
 mod eval;
 mod lexer;
 mod parser;
+mod funcs;
 
 use eval::{evaluate, Value, Context, EvalError};
 use lexer::tokenize;
@@ -20,10 +21,10 @@ fn print_parse_error(line: &str, err: &ParseError) {
     (a..b).for_each(|_| msg.push('^'));
     eprintln!("{}", msg);
 
-    if a == b {
+    if a == b - 1 {
         eprintln!("invalid syntax at {}", a);
     } else {
-        eprintln!("invalid syntax at {}:{}", a, b);
+        eprintln!("invalid syntax at {}:{}", a, b - 1);
     }
 }
 
@@ -49,6 +50,12 @@ fn execute_line(line: &str, ctx: &mut Context) {
     match val {
         Value::Number(x) => {
             println!(" {:?}", x);
+        },
+        Value::Function(f) => {
+            match f.name() {
+                Some(s) => println!(" <function: {}>", s),
+                None => println!(" <function>")
+            }
         }
     }
 }
@@ -57,7 +64,9 @@ fn main() {
     let exit_cmds = vec!["exit", "quit", ""];
     let input = io::stdin();
     let mut output = io::stdout();
-    let mut ctx = eval::Context::new();
+
+    let base = funcs::create();
+    let mut ctx = eval::Context::with_parent(&base);
 
     loop {
         output.write(b">>> ").unwrap();

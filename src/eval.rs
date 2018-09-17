@@ -1,9 +1,26 @@
+use std::fmt;
+use std::rc::Rc;
 use parser::{Node, Op};
 use std::collections::HashMap;
 
-#[derive(Clone, Debug)]
+pub trait Func {
+    fn name(&self) -> Option<&str>;
+    fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError>;
+} 
+
+#[derive(Clone)]
 pub enum Value {
     Number(f64),
+    Function(Rc<Box<Func>>)
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Number(x) => write!(f, "Number({:?})", x),
+            Value::Function(_) => write!(f, "Function(...)")
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -77,6 +94,15 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
     Ok(Value::Number(y))
 }
 
+fn evaluate_apply(fun: &Value, args: &Vec<Value>) -> Result<Value, EvalError> {
+    let fun = match fun {
+        Value::Function(f) => f,
+        _ => return Err(EvalError(format!("invalid cast to function"))),
+    };
+
+    fun.call(args)
+}
+
 fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
     match node {
         Node::Immediate(val) => Ok(val.clone()),
@@ -100,6 +126,12 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
         Node::MonOp(op, arg) => {
             let x = evaluate_node(arg, ctx)?;
             evaluate_monop(*op, &x)
+        }
+        Node::Apply(fun, args) => {
+            let f = evaluate_node(fun, ctx)?;
+            let mut vals = vec![];
+            for arg in args { vals.push(evaluate_node(arg, ctx)?); }
+            evaluate_apply(&f, &vals)
         }
     }
 }

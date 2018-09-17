@@ -9,6 +9,7 @@ pub enum Node {
     Immediate(Value),
     MonOp(Op, Box<Node>),
     BinOp(Op, Box<Node>, Box<Node>),
+    Apply(Box<Node>, Vec<Node>),
     Load(String),
     Store(String, Box<Node>)
 }
@@ -53,6 +54,33 @@ fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
     }
 }
 
+fn parse_apply(lexer: &mut Lexer) -> Result<Node, ParseError> {
+    let mut out = parse_primitive(lexer)?;
+
+    while lexer.peek() == Token::LeftParen {
+        lexer.next();
+        let mut args = vec![];
+
+        while lexer.peek() != Token::RightParen {
+            args.push(parse_expr(lexer)?);
+
+            if lexer.peek() == Token::Comma {
+                lexer.next();
+            } else {
+                break;
+            }
+        }
+
+        if lexer.next() != Token::RightParen {
+            return unexpected_prev_token(lexer);
+        }
+
+        out = Node::Apply(Box::new(out), args);
+    }
+
+    Ok(out)
+}
+
 fn parse_monop(lexer: &mut Lexer) -> Result<Node, ParseError> {
     if let Token::Operator(op) = lexer.peek() {
         if op == Op::Add || op == Op::Sub {
@@ -62,7 +90,7 @@ fn parse_monop(lexer: &mut Lexer) -> Result<Node, ParseError> {
         }
     }
 
-    parse_primitive(lexer)
+    parse_apply(lexer)
 }
 
 fn op_prec(op: Op) -> i32 {
