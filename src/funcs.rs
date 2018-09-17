@@ -2,6 +2,7 @@ extern crate rand;
 
 use self::rand::random;
 use eval::{Context, EvalError, Func, Value};
+use std::cmp;
 use std::f64::consts;
 use std::rc::Rc;
 
@@ -10,7 +11,7 @@ fn set_const(ctx: &mut Context, key: &str, val: f64) {
 }
 
 fn check_num_args(args: &Vec<Value>, want: usize) -> Result<(), EvalError> {
-    let (x, y) = (args.len(), want);
+    let (x, y) = (want, args.len());
 
     if x != y {
         let buffer = format!(
@@ -112,21 +113,34 @@ pub fn create() -> Context<'static> {
         set_binary(c, "log", |x, y| x.log(y));
         set_binary(c, "hypot", |x, y| x.hypot(y));
 
-        set_closure(c, "max", |args| {
-            if args.len() == 0 {
-                return Err(EvalError("max of empty sequence".into()));
-            }
-
-            let mut best = args[0].clone();
-
-            for arg in args {
-                if arg > &best {
-                    best = arg.clone();
+        for (key, ord) in vec![
+            ("max", cmp::Ordering::Less),
+            ("min", cmp::Ordering::Greater),
+        ] {
+            set_closure(c, key, move |args| {
+                if args.len() == 0 {
+                    return Err(EvalError(format!("{} of empty sequence", key)));
                 }
-            }
 
-            Ok(best)
-        });
+                let mut best = args[0].clone();
+
+                for arg in args {
+                    if let Some(x) = best.partial_cmp(arg) {
+                        if x == ord {
+                            best = arg.clone();
+                        }
+                    } else {
+                        return Err(EvalError(format!(
+                            "types '{}' and '{}' cannot be compared",
+                            best.type_name(),
+                            arg.type_name()
+                        )));
+                    }
+                }
+
+                Ok(best)
+            });
+        }
 
         set_closure(c, "rand", |args| {
             let (a, b) = match args.len() {

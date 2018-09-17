@@ -8,17 +8,11 @@ pub trait Func {
     fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError>;
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Clone)]
 pub enum Value {
     Number(f64),
     Boolean(bool),
     Function(Rc<Box<Func>>),
-}
-
-impl PartialEq for Func {
-    fn eq(&self, other: &Func) -> bool {
-        return self as *const Func == other as *const Func;
-    }
 }
 
 impl Value {
@@ -60,15 +54,24 @@ impl fmt::Debug for Value {
 
 impl cmp::PartialOrd for Value {
     fn partial_cmp(&self, other: &Value) -> Option<cmp::Ordering> {
-        if self == other {
-            return Some(cmp::Ordering::Equal);
-        }
-
         match (self, other) {
             (Value::Number(x), Value::Number(y)) => x.partial_cmp(y),
-            (Value::Boolean(x), Value::Boolean(y)) => Some(x.cmp(y)),
+            (Value::Boolean(x), Value::Boolean(y)) => x.partial_cmp(y),
+            (Value::Function(x), Value::Function(y)) => {
+                if Rc::ptr_eq(x, y) {
+                    Some(cmp::Ordering::Equal)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
+    }
+}
+
+impl cmp::PartialEq for Value {
+    fn eq(&self, other: &Value) -> bool {
+        self.partial_cmp(other) == Some(cmp::Ordering::Equal)
     }
 }
 
@@ -112,32 +115,25 @@ impl<'a> Context<'a> {
     }
 }
 
-fn compare_values(op: Op, lhs: &Value, rhs: &Value) -> Option<bool> {
-    use Value::Boolean as B;
-    use Value::Number as N;
-
-    match op {
-        Op::Gt => compare_values(Op::Lt, rhs, lhs),
-        Op::Gte => compare_values(Op::Lte, rhs, lhs),
-        Op::Neq => compare_values(Op::Eq, lhs, rhs).map(|b| !b),
-        Op::Lte => {
-            if lhs == rhs {
-                Some(true)
-            } else {
-                compare_values(Op::Lt, lhs, rhs)
-            }
-        }
-        Op::Eq => Some(lhs == rhs),
-        Op::Lt => lhs.partial_cmp(rhs).map(|x| x == cmp::Ordering::Less),
-        _ => None,
-    }
-}
-
 fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> {
     use Value::Boolean as B;
     use Value::Number as N;
 
-    if let Some(b) = compare_values(op, lhs, rhs) {
+    let result = match op {
+        Op::Eq => Some(lhs == rhs),
+        Op::Neq => Some(lhs != rhs),
+        Op::Lt => lhs.partial_cmp(rhs).map(|x| x == cmp::Ordering::Less),
+        Op::Gt => lhs.partial_cmp(rhs).map(|x| x == cmp::Ordering::Greater),
+        Op::Lte => lhs
+            .partial_cmp(rhs)
+            .map(|x| x == cmp::Ordering::Less || x == cmp::Ordering::Equal),
+        Op::Gte => lhs
+            .partial_cmp(rhs)
+            .map(|x| x == cmp::Ordering::Greater || x == cmp::Ordering::Equal),
+        _ => None,
+    };
+
+    if let Some(b) = result {
         return Ok(B(b));
     }
 
@@ -242,4 +238,69 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
 
 pub fn evaluate(root: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
     evaluate_node(root, ctx)
+}
+
+#[cfg(test)]
+mod test {
+    use super::{evaluate, Context, EvalError, Value};
+    use lexer::tokenize;
+    use parser::{parse, ParseError};
+
+    fn check(line: &str, expected: Value) {
+        let lexer = tokenize(line);
+        let root = parse(lexer).unwrap();
+        let output = evaluate(&root, &mut Context::new()).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_operator() {
+        check("1 + 2 * 3", Value::Number(7.0));
+        check("1 * 2 + 3", Value::Number(5.0));
+
+        check("2 * 3", Value::Number(6.0));
+        check("4 / 2", Value::Number(2.0));
+        check("1 + 2", Value::Number(3.0));
+        check("2 - 1", Value::Number(1.0));
+
+        check("true * true", Value::Boolean(true));
+        check("true * false", Value::Boolean(false));
+        check("true + false", Value::Boolean(true));
+        check("false + false", Value::Boolean(false));
+
+        check("1 and 0", Value::Number(0.0));
+        check("0 and 2", Value::Number(0.0));
+        check("3 or 0", Value::Number(3.0));
+        check("0 or 4", Value::Number(4.0));
+
+        check("1 and 2 or 3 and 4", Value::Number(2.0));
+        check("0 and 2 or 3 and 4", Value::Number(4.0));
+        check("0 and 0 or 3 and 4", Value::Number(4.0));
+        check("0 and 0 or 0 and 4", Value::Number(0.0));
+        check("0 and 0 or 0 and 0", Value::Number(0.0));
+
+        check("1 or 2 and 3 or 4", Value::Number(1.0));
+        check("0 or 2 and 3 or 4", Value::Number(3.0));
+        check("0 or 0 and 3 or 4", Value::Number(4.0));
+        check("0 or 0 and 0 or 4", Value::Number(4.0));
+        check("0 or 0 and 0 or 0", Value::Number(0.0));
+    }
+
+    #[test]
+    fn test_cmp() {
+        check("1 == 1", Value::Boolean(true));
+        check("1 != 1", Value::Boolean(false));
+        check("1 <= 1", Value::Boolean(true));
+        check("1 >= 1", Value::Boolean(true));
+        check("1 <= 1", Value::Boolean(true));
+        check("1 >= 1", Value::Boolean(true));
+
+        check("1 == 2", Value::Boolean(false));
+        check("1 != 2", Value::Boolean(true));
+        check("1 <= 2", Value::Boolean(true));
+        check("1 >= 2", Value::Boolean(false));
+        check("1 <= 2", Value::Boolean(true));
+        check("1 >= 2", Value::Boolean(false));
+    }
 }
