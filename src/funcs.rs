@@ -32,8 +32,8 @@ where
             )));
         }
 
-        let x = match args[0] {
-            Value::Number(x) => x,
+        let x = match args[0].as_number() {
+            Some(x) => x,
             _ => return Err(EvalError("invalid cast to number".into())),
         };
 
@@ -55,8 +55,8 @@ where
             )));
         }
 
-        let (x, y) = match (&args[0], &args[1]) {
-            (Value::Number(x), Value::Number(y)) => (*x, *y),
+        let (x, y) = match (args[0].as_number(), args[1].as_number()) {
+            (Some(x), Some(y)) => (x, y),
             _ => return Err(EvalError("invalid cast to number".into())),
         };
 
@@ -86,6 +86,7 @@ pub fn create() -> Context<'static> {
         set_unary(c, "round", |x| x.round());
         set_unary(c, "sqrt", |x| x.sqrt());
         set_unary(c, "exp", |x| x.exp());
+        set_unary(c, "float", |x| x);
 
         set_binary(c, "pow", |x, y| x.powf(y));
         set_binary(c, "log", |x, y| x.log(y));

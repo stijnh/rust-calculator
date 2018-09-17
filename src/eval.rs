@@ -16,7 +16,7 @@ pub enum Value {
 }
 
 impl Value {
-    fn as_number(&self) -> Option<f64> {
+    pub fn as_number(&self) -> Option<f64> {
         match self {
             Value::Number(x) => Some(*x),
             Value::Boolean(true) => Some(1.0),
@@ -25,11 +25,19 @@ impl Value {
         }
     }
 
-    fn as_bool(&self) -> Option<bool> {
+    pub fn as_bool(&self) -> Option<bool> {
         match self {
             Value::Boolean(x) => Some(*x),
             Value::Number(x) => Some(*x != 0.0),
             _ => None,
+        }
+    }
+
+    pub fn type_name(&self) -> &str {
+        match self {
+            Value::Boolean(_) => "boolean",
+            Value::Number(_) => "number",
+            Value::Function(_) => "function",
         }
     }
 }
@@ -84,41 +92,81 @@ impl<'a> Context<'a> {
     }
 }
 
-fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> {
-    let (x, y) = match (lhs.as_number(), rhs.as_number()) {
-        (Some(x), Some(y)) => (x, y),
-        _ => return Err(EvalError(format!("invalid cast to number"))),
-    };
+fn compare_values(op: Op, lhs: &Value, rhs: &Value) -> Option<bool> {
+    match op {
+        Op::Gt => compare_values(Op::Lt, rhs, lhs),
+        Op::Gte => compare_values(Op::Lte, rhs, lhs),
+        Op::Neq => compare_values(Op::Eq, lhs, rhs).map(|b| !b),
+        Op::Lte => 
+            if let Some(true) = compare_values(Op::Eq, lhs, rhs) {
+                Some(true)
+            } else {
+                compare_values(Op::Lt, lhs, rhs)
+            },
+        Op::Eq => {
+            match (lhs, rhs) {
+                (Value::Number(x), Value::Number(y)) => Some(x == y),
+                (Value::Boolean(x), Value::Boolean(y)) => Some(x == y),
+                _ => None
+            }
+        },
+        _ => None
+    }
+}
 
-    let z = match op {
-        Op::Add => x + y,
-        Op::Sub => x - y,
-        Op::Mul => x * y,
-        Op::Div => x / y,
+fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> {
+    use Value::Number as N;
+    use Value::Boolean as B;
+
+    if let Some(b) = compare_values(op, lhs, rhs) {
+        return Ok(B(b));
+    }
+
+    match (op, lhs.as_bool()) {
+        (Op::And, Some(true))  => return Ok(rhs.clone()),
+        (Op::And, Some(false)) => return Ok(lhs.clone()),
+        (Op::Or, Some(true))  => return Ok(lhs.clone()),
+        (Op::Or, Some(false)) => return Ok(rhs.clone()),
+        _ => ()
+    }
+
+    let out = match (op, lhs.clone(), rhs.clone()) {
+        (Op::Add, N(x), N(y)) => N(x + y),
+        (Op::Sub, N(x), N(y)) => N(x - y),
+        (Op::Mul, N(x), N(y)) => N(x * y),
+        (Op::Div, N(x), N(y)) => N(x / y),
+        (Op::Eq, N(x), N(y)) =>  B(x == y),
+        (Op::Lt, N(x), N(y)) =>  B(x < y),
+
+        (Op::Mul, B(x), B(y)) => B(x && y),
+        (Op::Add, B(x), B(y)) => B(x || y),
+        (Op::Eq, B(x), B(y)) =>  B(x == y),
+        (Op::Lt, B(x), B(y)) =>  B(x < y),
         _ => {
-            return Err(EvalError(format!(
-                "invalid binary operator '{}'",
-                op.name()
-            )))
+            return Err(EvalError(format!("invalid binary operator '{}' for types {} and {}",
+                                         op.name(), lhs.type_name(), rhs.type_name())));
         }
     };
 
-    Ok(Value::Number(z))
+    Ok(out)
 }
 
 fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
-    let x = match arg {
-        Value::Number(x) => *x,
-        _ => return Err(EvalError(format!("invalid cast to number"))),
+    use Value::Number as N;
+    use Value::Boolean as B;
+
+    let out = match (op, arg.clone()) {
+        (Op::Add, N(x)) => N(x),
+        (Op::Sub, N(x)) => N(-x),
+        (Op::Not, N(x)) => B(x == 0.0),
+        (Op::Not, B(x)) => B(!x),
+        _ => {
+            return Err(EvalError(format!("invalid unary operator '{}' for type {}",
+                                         op.name(), arg.type_name())));
+        }
     };
 
-    let y = match op {
-        Op::Add => x,
-        Op::Sub => -x,
-        _ => return Err(EvalError(format!("invalid unary operator '{}'", op.name()))),
-    };
-
-    Ok(Value::Number(y))
+    Ok(out)
 }
 
 fn evaluate_apply(fun: &Value, args: &Vec<Value>) -> Result<Value, EvalError> {
