@@ -1,17 +1,21 @@
+extern crate itertools;
+
 use std::io;
 use std::io::prelude::*;
+use self::itertools::join;
 
 mod eval;
 mod funcs;
 mod lexer;
 mod parser;
 
+
 use eval::{evaluate, Context, EvalError, Value};
 use lexer::tokenize;
 use parser::{parse, ParseError, Span};
 
 fn print_parse_error(line: &str, err: &ParseError) {
-    eprint!("{}", line);
+    eprintln!("{}", line);
 
     let Span(a, b) = err.span;
 
@@ -24,6 +28,20 @@ fn print_parse_error(line: &str, err: &ParseError) {
         eprintln!("invalid syntax at {}", a);
     } else {
         eprintln!("invalid syntax at {}:{}", a, b - 1);
+    }
+}
+
+fn format_value(val: &Value) -> String {
+    match val {
+        Value::Number(x) => format!("{}", x),
+        Value::Boolean(x) => format!("{}", x),
+        Value::Function(f) => match f.name() {
+            Some(s) => format!("<function: {}>", s),
+            None => format!("<function>"),
+        },
+        Value::List(x) => {
+            format!("[{}]", join(x.iter().map(format_value), ", "))
+        }
     }
 }
 
@@ -48,18 +66,7 @@ fn execute_line(line: &str, ctx: &mut Context) {
         }
     };
 
-    match val {
-        Value::Number(x) => {
-            println!(" {:?}", x);
-        }
-        Value::Function(f) => match f.name() {
-            Some(s) => println!(" <function: {}>", s),
-            None => println!(" <function>"),
-        },
-        Value::Boolean(b) => {
-            println!(" {:?}", b);
-        }
-    }
+    println!(" {}", format_value(&val));
 }
 
 fn main() {

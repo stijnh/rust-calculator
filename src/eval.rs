@@ -43,6 +43,7 @@ impl Func for ClosureFunc {
 pub enum Value {
     Number(f64),
     Boolean(bool),
+    List(Rc<Vec<Value>>),
     Function(Rc<Box<Func>>),
 }
 
@@ -61,6 +62,7 @@ impl Value {
             Value::Boolean(x) => Some(*x),
             Value::Number(x) => Some(*x != 0.0),
             Value::Function(_) => Some(true),
+            Value::List(lst) => Some(!lst.is_empty())
         }
     }
 
@@ -69,6 +71,7 @@ impl Value {
             Value::Boolean(_) => "boolean",
             Value::Number(_) => "number",
             Value::Function(_) => "function",
+            Value::List(_) => "list",
         }
     }
 }
@@ -79,6 +82,7 @@ impl fmt::Debug for Value {
             Value::Number(x) => write!(f, "Number({:?})", x),
             Value::Boolean(x) => write!(f, "Boolean({:?})", x),
             Value::Function(_) => write!(f, "Function(...)"),
+            Value::List(x) => write!(f, "{:?}", x),
         }
     }
 }
@@ -88,6 +92,7 @@ impl cmp::PartialOrd for Value {
         match (self, other) {
             (Value::Number(x), Value::Number(y)) => x.partial_cmp(y),
             (Value::Boolean(x), Value::Boolean(y)) => x.partial_cmp(y),
+            (Value::List(x), Value::List(y)) => x.partial_cmp(y),
             (Value::Function(x), Value::Function(y)) => {
                 if Rc::ptr_eq(x, y) {
                     Some(cmp::Ordering::Equal)
@@ -149,6 +154,7 @@ impl<'a> Context<'a> {
 fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> {
     use Value::Boolean as B;
     use Value::Number as N;
+    use Value::List as L;
 
     if let Some(b) = match op {
         Op::Eq => Some(lhs == rhs),
@@ -171,6 +177,13 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
     }
 
     let out = match (op, lhs.clone(), rhs.clone()) {
+        (Op::Add, L(x), L(y)) => {
+            let mut tmp = vec![];
+            tmp.extend(x.iter().cloned());
+            tmp.extend(y.iter().cloned());
+            L(Rc::new(tmp))
+        },
+
         (Op::Add, N(x), N(y)) => N(x + y),
         (Op::Sub, N(x), N(y)) => N(x - y),
         (Op::Mul, N(x), N(y)) => N(x * y),
@@ -257,6 +270,13 @@ fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, Ev
             }
             Node::Apply(fun, vals)
         }
+        Node::List(args) => {
+            let mut vals = vec![];
+            for arg in args {
+                vals.push(bind_vars(arg, bound, ctx)?);
+            }
+            Node::List(vals)
+        }
         Node::Immediate(_) => node.clone(),
         Node::Store(_, _) => {
             return Err(EvalError("assignment within lambda is not allowed".into()))
@@ -311,6 +331,13 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
                 vals.push(evaluate_node(arg, ctx)?);
             }
             evaluate_apply(&f, &vals)
+        }
+        Node::List(args) => {
+            let mut vals = vec![];
+            for arg in args {
+                vals.push(evaluate_node(arg, ctx)?);
+            }
+            Ok(Value::List(Rc::new(vals)))
         }
         Node::Lambda(args, body) => evaluate_lambda(None, args, body, ctx)
     }

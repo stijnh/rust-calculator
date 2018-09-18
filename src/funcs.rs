@@ -10,12 +10,13 @@ fn set_const(ctx: &mut Context, key: &str, val: f64) {
     ctx.set(key, Value::Number(val))
 }
 
-fn check_num_args(args: &Vec<Value>, want: usize) -> Result<(), EvalError> {
+fn check_num_args(name: &str, args: &Vec<Value>, want: usize) -> Result<(), EvalError> {
     let (x, y) = (want, args.len());
 
     if x != y {
         let buffer = format!(
-            "expected {} argument{}, {} argument{} given",
+            "{} expected {} argument{}, {} argument{} given",
+            name,
             x,
             if x == 1 { "" } else { "s" },
             y,
@@ -66,8 +67,9 @@ fn set_unary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
 where
     F: Fn(f64) -> f64,
 {
+    let name = key.to_owned();
     set_closure(ctx, key, move |args: &Vec<Value>| {
-        check_num_args(args, 1)?;
+        check_num_args(&name, args, 1)?;
         let x = check_number(&args[0])?;
 
         Ok(Value::Number(fun(x)))
@@ -78,8 +80,9 @@ fn set_binary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
 where
     F: Fn(f64, f64) -> f64,
 {
+    let name = key.to_owned();
     set_closure(ctx, key, move |args: &Vec<Value>| {
-        check_num_args(args, 2)?;
+        check_num_args(&name, args, 2)?;
         let x = check_number(&args[0])?;
         let y = check_number(&args[1])?;
 

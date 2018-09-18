@@ -25,6 +25,8 @@ pub enum Token {
     False,
     LeftParen,
     RightParen,
+    LeftBracket,
+    RightBracket,
     Comma,
     Assign,
     Arrow,
@@ -58,6 +60,8 @@ impl Op {
 impl Token {
     pub fn name(&self) -> String {
         match self {
+            Token::LeftBracket => "[",
+            Token::RightBracket => "]",
             Token::LeftParen => "(",
             Token::RightParen => ")",
             Token::Comma => ",",
@@ -163,6 +167,8 @@ impl Lexer {
         }
 
         match c {
+            '[' => Token::LeftBracket,
+            ']' => Token::RightBracket,
             '(' => Token::LeftParen,
             ')' => Token::RightParen,
             ',' => Token::Comma,

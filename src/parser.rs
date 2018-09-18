@@ -11,6 +11,7 @@ pub enum Node {
     BinOp(Op, Box<Node>, Box<Node>),
     Apply(Box<Node>, Vec<Node>),
     Lambda(Vec<String>, Box<Node>),
+    List(Vec<Node>),
     Load(String),
     Store(String, Box<Node>),
 }
@@ -53,6 +54,25 @@ fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
             } else {
                 return unexpected_prev_token(lexer);
             }
+        }
+        Token::LeftBracket => {
+            let mut args = vec![];
+
+            while lexer.peek() != Token::RightBracket {
+                args.push(parse_expr(lexer)?);
+
+                if lexer.peek() == Token::Comma {
+                    lexer.next();
+                } else {
+                    break;
+                }
+            }
+
+            if lexer.next() != Token::RightBracket {
+                return unexpected_prev_token(lexer);
+            }
+
+            Node::List(args)
         }
         _ => return unexpected_prev_token(lexer),
     };
