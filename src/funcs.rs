@@ -94,6 +94,9 @@ pub fn create() -> Context<'static> {
         let c = &mut ctx;
         set_const(c, "pi", consts::PI);
         set_const(c, "e", consts::E);
+        set_const(c, "nan", consts::E);
+        set_const(c, "inf", consts::E);
+        set_const(c, "inf", consts::E);
 
         set_unary(c, "asin", |x| x.asin());
         set_unary(c, "acos", |x| x.acos());

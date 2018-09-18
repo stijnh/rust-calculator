@@ -63,7 +63,7 @@ fn execute_line(line: &str, ctx: &mut Context) {
 }
 
 fn main() {
-    let exit_cmds = vec!["exit", "quit", ""];
+    let exit_cmds = vec!["exit", "quit"];
     let input = io::stdin();
     let mut output = io::stdout();
 
@@ -74,13 +74,18 @@ fn main() {
         output.write(b">>> ").unwrap();
         output.flush().unwrap();
 
-        let mut line = String::new();
-        input.read_line(&mut line).unwrap();
+        let mut buffer = String::new();
+        input.read_line(&mut buffer).unwrap();
 
-        if exit_cmds.contains(&line.trim()) {
+        let line = &buffer.trim();
+        if buffer.is_empty() || exit_cmds.contains(line) {
             break;
         }
 
-        execute_line(&line, &mut ctx);
+        if line.len() == 0 {
+            continue;
+        }
+
+        execute_line(line, &mut ctx);
     }
 }

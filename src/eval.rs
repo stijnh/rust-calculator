@@ -12,13 +12,17 @@ pub trait Func {
 }
 
 struct ClosureFunc {
+    name: Option<String>,
     params: Vec<String>,
     body: Node,
 }
 
 impl Func for ClosureFunc {
     fn name(&self) -> Option<&str> {
-        None
+        match self.name {
+            Some(ref x) => Some(&x),
+            None => None
+        }
     }
 
     fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError> {
@@ -56,7 +60,7 @@ impl Value {
         match self {
             Value::Boolean(x) => Some(*x),
             Value::Number(x) => Some(*x != 0.0),
-            _ => None,
+            Value::Function(_) => Some(true),
         }
     }
 
@@ -146,21 +150,15 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
     use Value::Boolean as B;
     use Value::Number as N;
 
-    let result = match op {
+    if let Some(b) = match op {
         Op::Eq => Some(lhs == rhs),
         Op::Neq => Some(lhs != rhs),
         Op::Lt => lhs.partial_cmp(rhs).map(|x| x == cmp::Ordering::Less),
         Op::Gt => lhs.partial_cmp(rhs).map(|x| x == cmp::Ordering::Greater),
-        Op::Lte => lhs
-            .partial_cmp(rhs)
-            .map(|x| x != cmp::Ordering::Greater),
-        Op::Gte => lhs
-            .partial_cmp(rhs)
-            .map(|x| x != cmp::Ordering::Less),
+        Op::Lte => lhs.partial_cmp(rhs).map(|x| x != cmp::Ordering::Greater),
+        Op::Gte => lhs.partial_cmp(rhs).map(|x| x != cmp::Ordering::Less),
         _ => None,
-    };
-
-    if let Some(b) = result {
+    } {
         return Ok(B(b));
     }
 
@@ -251,15 +249,26 @@ fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, Ev
         Node::MonOp(op, x) => {
             Node::MonOp(*op, Box::new(bind_vars(x, bound, ctx)?))
         }
+        Node::Apply(fun, args) => {
+            let fun = Box::new(bind_vars(fun, bound, ctx)?);
+            let mut vals = vec![];
+            for arg in args {
+                vals.push(bind_vars(arg, bound, ctx)?);
+            }
+            Node::Apply(fun, vals)
+        }
         Node::Immediate(_) => node.clone(),
-        _ => node.clone()
+        Node::Store(_, _) => {
+            return Err(EvalError("assignment within lambda is not allowed".into()))
+        }
     };
 
     Ok(out)
 }
 
-fn evaluate_lambda(params: &Vec<String>, body: &Node, ctx: &Context) -> Result<Value, EvalError> {
+fn evaluate_lambda(name: Option<&str>, params: &Vec<String>, body: &Node, ctx: &Context) -> Result<Value, EvalError> {
     let fun = ClosureFunc {
+        name: name.map(|x| format!("user-defined {}", x)),
         params: params.clone(),
         body: bind_vars(body, params, ctx)?
     };
@@ -271,7 +280,11 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
     match node {
         Node::Immediate(val) => Ok(val.clone()),
         Node::Store(key, arg) => {
-            let val = evaluate_node(arg, ctx)?;
+            let val = match arg.as_ref() {
+                Node::Lambda(args, body) => evaluate_lambda(Some(key), args, body, ctx)?,
+                _ => evaluate_node(arg, ctx)?
+            };
+
             ctx.set(key, val.clone());
             Ok(val)
         }
@@ -299,7 +312,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             }
             evaluate_apply(&f, &vals)
         }
-        Node::Lambda(args, body) => evaluate_lambda(args, body, ctx)
+        Node::Lambda(args, body) => evaluate_lambda(None, args, body, ctx)
     }
 }
 
@@ -369,5 +382,14 @@ mod test {
         check("1 >= 2", Value::Boolean(false));
         check("1 <= 2", Value::Boolean(true));
         check("1 >= 2", Value::Boolean(false));
+    }
+
+    #[test]
+    fn test_lambda() {
+        check("(x => x)(1)", Value::Number(1.0));
+        check("((x) => x)(1)", Value::Number(1.0));
+        check("(x => y => x + y)(1)(2)", Value::Number(3.0));
+        check("(x => y => z => x+y+z)(1)(2)(3)", Value::Number(6.0));
+        check("((x, y) => x + y)(1, 2)", Value::Number(3.0));
     }
 }

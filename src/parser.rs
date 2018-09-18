@@ -188,14 +188,16 @@ fn parse_expr(lexer: &mut Lexer) -> Result<Node, ParseError> {
 }
 
 fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
-    let lhs = parse_expr(lexer)?;
-    let out = match (lhs, lexer.peek()) {
-        (Node::Load(var), Token::Assign) => {
-            lexer.next();
-            let val = parse_expr(lexer)?;
+    let out = match (lexer.next(), lexer.next()) {
+        (Token::Ident(var), Token::Assign) => {
+            let val = parse_statement(lexer)?;
             Node::Store(var, Box::new(val))
+        },
+        _ => {
+            lexer.prev();
+            lexer.prev();
+            parse_expr(lexer)?
         }
-        (out, _) => out,
     };
 
     match lexer.peek() {
