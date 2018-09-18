@@ -20,7 +20,7 @@ fn print_parse_error(line: &str, err: &ParseError) {
     (a..b).for_each(|_| msg.push('^'));
     eprintln!("{}", msg);
 
-    if a == b - 1 {
+    if a + 1 >= b {
         eprintln!("invalid syntax at {}", a);
     } else {
         eprintln!("invalid syntax at {}:{}", a, b - 1);
@@ -28,7 +28,7 @@ fn print_parse_error(line: &str, err: &ParseError) {
 }
 
 fn execute_line(line: &str, ctx: &mut Context) {
-    let lexer = tokenize(line);
+    let lexer = tokenize(line.trim());
 
     let root = match parse(lexer) {
         Ok(x) => x,
@@ -38,7 +38,7 @@ fn execute_line(line: &str, ctx: &mut Context) {
         }
     };
 
-    println!("{:?}", root);
+    println!("parsed: {:?}", root);
 
     let val = match evaluate(&root, ctx) {
         Ok(x) => x,

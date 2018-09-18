@@ -1,3 +1,6 @@
+extern crate itertools;
+
+use self::itertools::chain;
 use parser::{Node, Op};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -6,6 +9,30 @@ use std::{cmp, fmt};
 pub trait Func {
     fn name(&self) -> Option<&str>;
     fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError>;
+}
+
+struct ClosureFunc {
+    params: Vec<String>,
+    body: Node,
+}
+
+impl Func for ClosureFunc {
+    fn name(&self) -> Option<&str> {
+        None
+    }
+
+    fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError> {
+        if self.params.len() != args.len() {
+            return Err(EvalError(format!("wrong number of arguments")));
+        }
+
+        let mut ctx = Context::new();
+        for (param, arg) in self.params.iter().zip(args) {
+            ctx.set(param, arg.clone());
+        }
+
+        evaluate_node(&self.body, &mut ctx)
+    }
 }
 
 #[derive(Clone)]
@@ -126,10 +153,10 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
         Op::Gt => lhs.partial_cmp(rhs).map(|x| x == cmp::Ordering::Greater),
         Op::Lte => lhs
             .partial_cmp(rhs)
-            .map(|x| x == cmp::Ordering::Less || x == cmp::Ordering::Equal),
+            .map(|x| x != cmp::Ordering::Greater),
         Op::Gte => lhs
             .partial_cmp(rhs)
-            .map(|x| x == cmp::Ordering::Greater || x == cmp::Ordering::Equal),
+            .map(|x| x != cmp::Ordering::Less),
         _ => None,
     };
 
@@ -201,6 +228,45 @@ fn evaluate_apply(fun: &Value, args: &Vec<Value>) -> Result<Value, EvalError> {
     fun.call(args)
 }
 
+fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, EvalError> {
+    let out = match node {
+        Node::Load(var) => {
+            if bound.contains(var) {
+                Node::Load(var.clone())
+            } else if let Some(val) = ctx.get(var) {
+                Node::Immediate(val.clone())
+            } else {
+                return Err(EvalError(format!("undefined variable '{}'", var)))
+            }
+        },
+        Node::Lambda(args, body) => {
+            let new_bound = chain(args, bound).cloned().collect::<Vec<String>>();
+            Node::Lambda(args.clone(), Box::new(bind_vars(body, &new_bound, ctx)?))
+        }
+        Node::BinOp(op, x, y) => {
+            Node::BinOp(*op, 
+                        Box::new(bind_vars(x, bound, ctx)?), 
+                        Box::new(bind_vars(y, bound, ctx)?))
+        }
+        Node::MonOp(op, x) => {
+            Node::MonOp(*op, Box::new(bind_vars(x, bound, ctx)?))
+        }
+        Node::Immediate(_) => node.clone(),
+        _ => node.clone()
+    };
+
+    Ok(out)
+}
+
+fn evaluate_lambda(params: &Vec<String>, body: &Node, ctx: &Context) -> Result<Value, EvalError> {
+    let fun = ClosureFunc {
+        params: params.clone(),
+        body: bind_vars(body, params, ctx)?
+    };
+
+    Ok(Value::Function(Rc::new(Box::new(fun))))
+}
+
 fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
     match node {
         Node::Immediate(val) => Ok(val.clone()),
@@ -233,6 +299,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             }
             evaluate_apply(&f, &vals)
         }
+        Node::Lambda(args, body) => evaluate_lambda(args, body, ctx)
     }
 }
 

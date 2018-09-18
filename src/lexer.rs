@@ -27,6 +27,7 @@ pub enum Token {
     RightParen,
     Comma,
     Assign,
+    Arrow,
     Unknown(char),
     Number(String),
     Ident(String),
@@ -61,6 +62,7 @@ impl Token {
             Token::RightParen => ")",
             Token::Comma => ",",
             Token::Assign => "=",
+            Token::Arrow => "=>",
             Token::Number(x) => x,
             Token::Ident(x) => x,
             Token::Unknown(c) => return c.to_string(),
@@ -150,6 +152,7 @@ impl Lexer {
                 ('!', '=') => Token::Operator(Op::Neq),
                 ('<', '=') => Token::Operator(Op::Lte),
                 ('>', '=') => Token::Operator(Op::Gte),
+                ('=', '>') => Token::Arrow,
                 _ => Token::End,
             };
 
@@ -197,7 +200,7 @@ impl Lexer {
         }
 
         let index = stream.index;
-        spans.push(Span(index, index));
+        spans.push(Span(index, index + 1));
 
         Lexer {
             index: 0,
@@ -215,8 +218,9 @@ impl Lexer {
     }
 
     pub fn next(&mut self) -> Token {
-        if self.index < self.tokens.len() {
-            self.index += 1;
+        self.index += 1;
+
+        if self.index - 1 < self.tokens.len() {
             self.tokens[self.index - 1].clone()
         } else {
             Token::End
@@ -272,12 +276,15 @@ mod test {
 
     #[test]
     fn test_operators() {
-        let string = "+ - * /";
+        let string = "+ - * / not and or";
         let tokens = vec![
             Token::Operator(Op::Add),
             Token::Operator(Op::Sub),
             Token::Operator(Op::Mul),
             Token::Operator(Op::Div),
+            Token::Operator(Op::Not),
+            Token::Operator(Op::And),
+            Token::Operator(Op::Or),
         ];
 
         test_match(string, tokens);
@@ -329,8 +336,8 @@ mod test {
         assert_eq!(lexer.next(), a);
         assert_eq!(lexer.next(), b);
         assert_eq!(lexer.next(), c);
-        assert_eq!(lexer.next(), Token::End);
         lexer.prev();
         assert_eq!(lexer.next(), c);
+        assert_eq!(lexer.next(), Token::End);
     }
 }

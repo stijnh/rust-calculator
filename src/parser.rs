@@ -10,6 +10,7 @@ pub enum Node {
     MonOp(Op, Box<Node>),
     BinOp(Op, Box<Node>, Box<Node>),
     Apply(Box<Node>, Vec<Node>),
+    Lambda(Vec<String>, Box<Node>),
     Load(String),
     Store(String, Box<Node>),
 }
@@ -33,27 +34,30 @@ fn unexpected_prev_token(lexer: &mut Lexer) -> Result<Node, ParseError> {
 }
 
 fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
-    match lexer.next() {
-        Token::True => Ok(Node::Immediate(Value::Boolean(true))),
-        Token::False => Ok(Node::Immediate(Value::Boolean(false))),
-        Token::Ident(name) => Ok(Node::Load(name)),
+    let out = match lexer.next() {
+        Token::True => Node::Immediate(Value::Boolean(true)),
+        Token::False => Node::Immediate(Value::Boolean(false)),
+        Token::Ident(name) => Node::Load(name),
         Token::Number(num) => {
             if let Ok(x) = num.parse() {
-                Ok(Node::Immediate(Value::Number(x)))
+                Node::Immediate(Value::Number(x))
             } else {
-                unexpected_prev_token(lexer)
+                return unexpected_prev_token(lexer)
             }
         }
         Token::LeftParen => {
             let expr = parse_expr(lexer)?;
 
-            match lexer.next() {
-                Token::RightParen => Ok(expr),
-                _ => unexpected_prev_token(lexer),
+            if lexer.next() == Token::RightParen {
+                expr
+            } else {
+                return unexpected_prev_token(lexer);
             }
         }
-        _ => unexpected_prev_token(lexer),
-    }
+        _ => return unexpected_prev_token(lexer),
+    };
+
+    Ok(out)
 }
 
 fn parse_apply(lexer: &mut Lexer) -> Result<Node, ParseError> {
@@ -122,8 +126,65 @@ fn parse_binop(lexer: &mut Lexer, prec: i32) -> Result<Node, ParseError> {
     }
 }
 
+
+fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
+    let out = match (lexer.next(), lexer.next(), lexer.next(), lexer.next()) {
+
+        // Case 1: x => body
+        (Token::Ident(x), Token::Arrow, _, _) => {
+            lexer.prev();
+            lexer.prev();
+            let args = vec![x];
+            let body = parse_lambda(lexer)?;
+            Node::Lambda(args, Box::new(body))
+        }
+
+        // Case 2: (x) => body
+        (Token::LeftParen, Token::Ident(x), Token::RightParen, Token::Arrow) => {
+            let args = vec![x];
+            let body = parse_lambda(lexer)?;
+            Node::Lambda(args, Box::new(body))
+        },
+
+        // Case 3: (x, y, z) => body
+        (Token::LeftParen, Token::Ident(x), Token::Comma, Token::Ident(y)) => {
+            let mut args = vec![x, y];
+
+            loop {
+                match lexer.next() {
+                    Token::Comma => (),
+                    Token::RightParen => break,
+                    _ => return unexpected_prev_token(lexer)
+                };
+
+                match lexer.next() {
+                    Token::Ident(x) => args.push(x),
+                    _ => return unexpected_prev_token(lexer)
+                }
+            };
+
+            if lexer.next() != Token::Arrow {
+                return unexpected_prev_token(lexer);
+            }
+
+            let body = parse_lambda(lexer)?;
+            Node::Lambda(args, Box::new(body))
+        }
+
+        x => {
+            lexer.prev();
+            lexer.prev();
+            lexer.prev();
+            lexer.prev();
+            parse_binop(lexer, 0)?
+        }
+    };
+
+    Ok(out)
+}
+
 fn parse_expr(lexer: &mut Lexer) -> Result<Node, ParseError> {
-    parse_binop(lexer, 0)
+    parse_lambda(lexer)
 }
 
 fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {

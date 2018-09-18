@@ -95,6 +95,9 @@ pub fn create() -> Context<'static> {
         set_const(c, "pi", consts::PI);
         set_const(c, "e", consts::E);
 
+        set_unary(c, "asin", |x| x.asin());
+        set_unary(c, "acos", |x| x.acos());
+        set_unary(c, "atan", |x| x.atan());
         set_unary(c, "sin", |x| x.sin());
         set_unary(c, "cos", |x| x.cos());
         set_unary(c, "tan", |x| x.tan());
@@ -112,6 +115,7 @@ pub fn create() -> Context<'static> {
         set_binary(c, "pow", |x, y| x.powf(y));
         set_binary(c, "log", |x, y| x.log(y));
         set_binary(c, "hypot", |x, y| x.hypot(y));
+        set_binary(c, "atan2", |x, y| x.atan2(y));
 
         for (key, ord) in vec![
             ("max", cmp::Ordering::Less),

@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["stijnh <mail@stijnh.nl>"]
 
 [dependencies]
+rand="0.5.5"
+itertools="0.7.8"
