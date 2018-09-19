@@ -38,7 +38,7 @@ pub enum Token {
 }
 
 impl Op {
-    pub fn name(&self) -> String {
+    pub fn name(self) -> String {
         match self {
             Op::Add => "+",
             Op::Sub => "-",
@@ -100,7 +100,7 @@ impl<'a> CharStream<'a> {
     }
 
     fn peek(&mut self) -> char {
-        self.iterator.peek().map(|x| *x).unwrap_or('\0')
+        self.iterator.peek().cloned().unwrap_or('\0')
     }
 }
 

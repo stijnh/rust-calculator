@@ -8,7 +8,7 @@ use std::{cmp, fmt};
 
 pub trait Func {
     fn name(&self) -> Option<&str>;
-    fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError>;
+    fn call(&self, args: &[Value]) -> Result<Value, EvalError>;
 }
 
 struct ClosureFunc {
@@ -21,13 +21,13 @@ impl Func for ClosureFunc {
     fn name(&self) -> Option<&str> {
         match self.name {
             Some(ref x) => Some(&x),
-            None => None
+            None => None,
         }
     }
 
-    fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError> {
+    fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
         if self.params.len() != args.len() {
-            return Err(EvalError(format!("wrong number of arguments")));
+            return Err(EvalError("wrong number of arguments".to_string()));
         }
 
         let mut ctx = Context::new();
@@ -57,12 +57,12 @@ impl Value {
         }
     }
 
-    pub fn as_bool(&self) -> Option<bool> {
+    pub fn as_bool(&self) -> bool {
         match self {
-            Value::Boolean(x) => Some(*x),
-            Value::Number(x) => Some(*x != 0.0),
-            Value::Function(_) => Some(true),
-            Value::List(lst) => Some(!lst.is_empty())
+            Value::Boolean(x) => *x,
+            Value::Number(x) => *x != 0.0,
+            Value::Function(_) => true,
+            Value::List(lst) => !lst.is_empty(),
         }
     }
 
@@ -143,7 +143,7 @@ impl<'a> Context<'a> {
             return p.get(key);
         }
 
-        return None;
+        None
     }
 
     pub fn set(&mut self, key: &str, val: Value) {
@@ -153,8 +153,8 @@ impl<'a> Context<'a> {
 
 fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> {
     use Value::Boolean as B;
-    use Value::Number as N;
     use Value::List as L;
+    use Value::Number as N;
 
     if let Some(b) = match op {
         Op::Eq => Some(lhs == rhs),
@@ -168,21 +168,13 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
         return Ok(B(b));
     }
 
-    match (op, lhs.as_bool()) {
-        (Op::And, Some(true)) => return Ok(rhs.clone()),
-        (Op::And, Some(false)) => return Ok(lhs.clone()),
-        (Op::Or, Some(true)) => return Ok(lhs.clone()),
-        (Op::Or, Some(false)) => return Ok(rhs.clone()),
-        _ => (),
-    }
-
     let out = match (op, lhs.clone(), rhs.clone()) {
         (Op::Add, L(x), L(y)) => {
             let mut tmp = vec![];
             tmp.extend(x.iter().cloned());
             tmp.extend(y.iter().cloned());
             L(Rc::new(tmp))
-        },
+        }
 
         (Op::Add, N(x), N(y)) => N(x + y),
         (Op::Sub, N(x), N(y)) => N(x - y),
@@ -225,7 +217,7 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
     Ok(out)
 }
 
-fn evaluate_apply(fun: &Value, args: &Vec<Value>) -> Result<Value, EvalError> {
+fn evaluate_apply(fun: &Value, args: &[Value]) -> Result<Value, EvalError> {
     let fun = match fun {
         Value::Function(f) => f,
         _ => {
@@ -239,7 +231,7 @@ fn evaluate_apply(fun: &Value, args: &Vec<Value>) -> Result<Value, EvalError> {
     fun.call(args)
 }
 
-fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, EvalError> {
+fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalError> {
     let out = match node {
         Node::Load(var) => {
             if bound.contains(var) {
@@ -247,21 +239,19 @@ fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, Ev
             } else if let Some(val) = ctx.get(var) {
                 Node::Immediate(val.clone())
             } else {
-                return Err(EvalError(format!("undefined variable '{}'", var)))
+                return Err(EvalError(format!("undefined variable '{}'", var)));
             }
-        },
+        }
         Node::Lambda(args, body) => {
             let new_bound = chain(args, bound).cloned().collect::<Vec<String>>();
             Node::Lambda(args.clone(), Box::new(bind_vars(body, &new_bound, ctx)?))
         }
-        Node::BinOp(op, x, y) => {
-            Node::BinOp(*op, 
-                        Box::new(bind_vars(x, bound, ctx)?), 
-                        Box::new(bind_vars(y, bound, ctx)?))
-        }
-        Node::MonOp(op, x) => {
-            Node::MonOp(*op, Box::new(bind_vars(x, bound, ctx)?))
-        }
+        Node::BinOp(op, x, y) => Node::BinOp(
+            *op,
+            Box::new(bind_vars(x, bound, ctx)?),
+            Box::new(bind_vars(y, bound, ctx)?),
+        ),
+        Node::MonOp(op, x) => Node::MonOp(*op, Box::new(bind_vars(x, bound, ctx)?)),
         Node::Apply(fun, args) => {
             let fun = Box::new(bind_vars(fun, bound, ctx)?);
             let mut vals = vec![];
@@ -270,11 +260,10 @@ fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, Ev
             }
             Node::Apply(fun, vals)
         }
-        Node::Index(lhs, rhs) => {
-            Node::Index(
-                Box::new(bind_vars(lhs, bound, ctx)?),
-                Box::new(bind_vars(lhs, bound, ctx)?))
-        }
+        Node::Index(lhs, rhs) => Node::Index(
+            Box::new(bind_vars(lhs, bound, ctx)?),
+            Box::new(bind_vars(lhs, bound, ctx)?),
+        ),
         Node::List(args) => {
             let mut vals = vec![];
             for arg in args {
@@ -291,11 +280,16 @@ fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, Ev
     Ok(out)
 }
 
-fn evaluate_lambda(name: Option<&str>, params: &Vec<String>, body: &Node, ctx: &Context) -> Result<Value, EvalError> {
+fn evaluate_lambda(
+    name: Option<&str>,
+    params: &[String],
+    body: &Node,
+    ctx: &Context,
+) -> Result<Value, EvalError> {
     let fun = ClosureFunc {
         name: name.map(|x| format!("user-defined {}", x)),
-        params: params.clone(),
-        body: bind_vars(body, params, ctx)?
+        params: params.to_owned(),
+        body: bind_vars(body, params, ctx)?,
     };
 
     Ok(Value::Function(Rc::new(Box::new(fun))))
@@ -307,7 +301,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
         Node::Store(key, arg) => {
             let val = match arg.as_ref() {
                 Node::Lambda(args, body) => evaluate_lambda(Some(key), args, body, ctx)?,
-                _ => evaluate_node(arg, ctx)?
+                _ => evaluate_node(arg, ctx)?,
             };
 
             ctx.set(key, val.clone());
@@ -320,6 +314,23 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
                 Err(EvalError(format!("undefined variable '{}'", var)))
             }
         }
+        Node::BinOp(Op::And, lhs, rhs) => {
+            let x = evaluate_node(lhs, ctx)?;
+            if x.as_bool() {
+                evaluate_node(rhs, ctx)
+            } else {
+                Ok(x)
+            }
+        }
+        Node::BinOp(Op::Or, lhs, rhs) => {
+            let x = evaluate_node(lhs, ctx)?;
+            if !x.as_bool() {
+                evaluate_node(rhs, ctx)
+            } else {
+                Ok(x)
+            }
+        }
+
         Node::BinOp(op, lhs, rhs) => {
             let x = evaluate_node(lhs, ctx)?;
             let y = evaluate_node(rhs, ctx)?;
@@ -337,9 +348,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             }
             evaluate_apply(&f, &vals)
         }
-        Node::Index(lhs, rhs) => {
-            Err(EvalError(format!("index not implemented")))
-        }
+        Node::Index(lhs, rhs) => Err(EvalError(format!("index not implemented"))),
         Node::List(args) => {
             let mut vals = vec![];
             for arg in args {
@@ -347,7 +356,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             }
             Ok(Value::List(Rc::new(vals)))
         }
-        Node::Lambda(args, body) => evaluate_lambda(None, args, body, ctx)
+        Node::Lambda(args, body) => evaluate_lambda(None, args, body, ctx),
     }
 }
 

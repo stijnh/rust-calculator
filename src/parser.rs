@@ -69,7 +69,7 @@ fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
             if let Ok(x) = num.parse() {
                 Node::Immediate(Value::Number(x))
             } else {
-                return unexpected_prev_token(lexer)
+                return unexpected_prev_token(lexer);
             }
         }
         Token::LeftParen => {
@@ -106,7 +106,7 @@ fn parse_apply(lexer: &mut Lexer) -> Result<Node, ParseError> {
                 break;
             }
         }
-    };
+    }
 
     Ok(out)
 }
@@ -150,10 +150,8 @@ fn parse_binop(lexer: &mut Lexer, prec: i32) -> Result<Node, ParseError> {
     }
 }
 
-
 fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
     let out = match (lexer.next(), lexer.next(), lexer.next(), lexer.next()) {
-
         // Case 1: x => body
         (Token::Ident(x), Token::Arrow, _, _) => {
             lexer.prev();
@@ -168,7 +166,7 @@ fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
             let args = vec![x];
             let body = parse_lambda(lexer)?;
             Node::Lambda(args, Box::new(body))
-        },
+        }
 
         // Case 3: (x, y, z) => body
         (Token::LeftParen, Token::Ident(x), Token::Comma, Token::Ident(y)) => {
@@ -178,14 +176,14 @@ fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
                 match lexer.next() {
                     Token::Comma => (),
                     Token::RightParen => break,
-                    _ => return unexpected_prev_token(lexer)
+                    _ => return unexpected_prev_token(lexer),
                 };
 
                 match lexer.next() {
                     Token::Ident(x) => args.push(x),
-                    _ => return unexpected_prev_token(lexer)
+                    _ => return unexpected_prev_token(lexer),
                 }
-            };
+            }
 
             if lexer.next() != Token::Arrow {
                 return unexpected_prev_token(lexer);
@@ -216,7 +214,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
         (Token::Ident(var), Token::Assign) => {
             let val = parse_statement(lexer)?;
             Node::Store(var, Box::new(val))
-        },
+        }
         _ => {
             lexer.prev();
             lexer.prev();

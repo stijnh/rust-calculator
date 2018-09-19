@@ -1,14 +1,13 @@
 extern crate itertools;
 
+use self::itertools::join;
 use std::io;
 use std::io::prelude::*;
-use self::itertools::join;
 
 mod eval;
 mod funcs;
 mod lexer;
 mod parser;
-
 
 use eval::{evaluate, Context, EvalError, Value};
 use lexer::tokenize;
@@ -37,11 +36,9 @@ fn format_value(val: &Value) -> String {
         Value::Boolean(x) => format!("{}", x),
         Value::Function(f) => match f.name() {
             Some(s) => format!("<function: {}>", s),
-            None => format!("<function>"),
+            None => "<function>".to_string(),
         },
-        Value::List(x) => {
-            format!("[{}]", join(x.iter().map(format_value), ", "))
-        }
+        Value::List(x) => format!("[{}]", join(x.iter().map(format_value), ", ")),
     }
 }
 
@@ -78,7 +75,7 @@ fn main() {
     let mut ctx = eval::Context::with_parent(&base);
 
     loop {
-        output.write(b">>> ").unwrap();
+        output.write_all(b">>> ").unwrap();
         output.flush().unwrap();
 
         let mut buffer = String::new();
@@ -89,7 +86,7 @@ fn main() {
             break;
         }
 
-        if line.len() == 0 {
+        if line.is_empty() {
             continue;
         }
 

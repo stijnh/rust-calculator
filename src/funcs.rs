@@ -10,7 +10,7 @@ fn set_const(ctx: &mut Context, key: &str, val: f64) {
     ctx.set(key, Value::Number(val))
 }
 
-fn check_num_args(name: &str, args: &Vec<Value>, want: usize) -> Result<(), EvalError> {
+fn check_num_args(name: &str, args: &[Value], want: usize) -> Result<(), EvalError> {
     let (x, y) = (want, args.len());
 
     if x != y {
@@ -30,33 +30,32 @@ fn check_num_args(name: &str, args: &Vec<Value>, want: usize) -> Result<(), Eval
 }
 
 fn check_number(arg: &Value) -> Result<f64, EvalError> {
-    if let Some(x) = arg.as_number() {
-        Ok(x)
-    } else {
-        Err(EvalError(format!(
+    match arg.as_number() {
+        Some(x) => Ok(x),
+        _ => Err(EvalError(format!(
             "invalid cast of {} to number",
             arg.type_name()
-        )))
+        ))),
     }
 }
 
 struct ClosureFunction<F>(String, F);
 impl<F> Func for ClosureFunction<F>
 where
-    F: Fn(&Vec<Value>) -> Result<Value, EvalError>,
+    F: Fn(&[Value]) -> Result<Value, EvalError>,
 {
     fn name(&self) -> Option<&str> {
         Some(&self.0)
     }
 
-    fn call(&self, args: &Vec<Value>) -> Result<Value, EvalError> {
+    fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
         self.1(args)
     }
 }
 
 fn set_closure<F: 'static>(ctx: &mut Context, key: &str, fun: F)
 where
-    F: Fn(&Vec<Value>) -> Result<Value, EvalError>,
+    F: Fn(&[Value]) -> Result<Value, EvalError>,
 {
     let f = ClosureFunction(key.to_string(), fun);
 
@@ -68,7 +67,7 @@ where
     F: Fn(f64) -> f64,
 {
     let name = key.to_owned();
-    set_closure(ctx, key, move |args: &Vec<Value>| {
+    set_closure(ctx, key, move |args: &[Value]| {
         check_num_args(&name, args, 1)?;
         let x = check_number(&args[0])?;
 
@@ -81,7 +80,7 @@ where
     F: Fn(f64, f64) -> f64,
 {
     let name = key.to_owned();
-    set_closure(ctx, key, move |args: &Vec<Value>| {
+    set_closure(ctx, key, move |args: &[Value]| {
         check_num_args(&name, args, 2)?;
         let x = check_number(&args[0])?;
         let y = check_number(&args[1])?;
@@ -123,12 +122,12 @@ pub fn create() -> Context<'static> {
         set_binary(c, "hypot", |x, y| x.hypot(y));
         set_binary(c, "atan2", |x, y| x.atan2(y));
 
-        for (key, ord) in vec![
+        for (key, ord) in &[
             ("max", cmp::Ordering::Less),
             ("min", cmp::Ordering::Greater),
         ] {
             set_closure(c, key, move |args| {
-                if args.len() == 0 {
+                if args.is_empty() {
                     return Err(EvalError(format!("{} of empty sequence", key)));
                 }
 
@@ -136,7 +135,7 @@ pub fn create() -> Context<'static> {
 
                 for arg in args {
                     if let Some(x) = best.partial_cmp(arg) {
-                        if x == ord {
+                        if x == *ord {
                             best = arg.clone();
                         }
                     } else {
