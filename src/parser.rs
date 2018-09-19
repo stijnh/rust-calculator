@@ -10,6 +10,7 @@ pub enum Node {
     MonOp(Op, Box<Node>),
     BinOp(Op, Box<Node>, Box<Node>),
     Apply(Box<Node>, Vec<Node>),
+    Index(Box<Node>, Box<Node>),
     Lambda(Vec<String>, Box<Node>),
     List(Vec<Node>),
     Load(String),
@@ -34,6 +35,31 @@ fn unexpected_prev_token(lexer: &mut Lexer) -> Result<Node, ParseError> {
     unexpected_token(lexer)
 }
 
+fn expect_token(lexer: &mut Lexer, token: &Token) -> Result<(), ParseError> {
+    if lexer.next() != *token {
+        unexpected_prev_token(lexer)?;
+    }
+
+    Ok(())
+}
+
+fn parse_list(lexer: &mut Lexer, closing: &Token) -> Result<Vec<Node>, ParseError> {
+    let mut args = vec![];
+
+    while lexer.peek() != *closing {
+        args.push(parse_expr(lexer)?);
+
+        if lexer.peek() == Token::Comma {
+            lexer.next();
+        } else {
+            break;
+        }
+    }
+
+    expect_token(lexer, closing)?;
+    Ok(args)
+}
+
 fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
     let out = match lexer.next() {
         Token::True => Node::Immediate(Value::Boolean(true)),
@@ -48,30 +74,11 @@ fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
         }
         Token::LeftParen => {
             let expr = parse_expr(lexer)?;
-
-            if lexer.next() == Token::RightParen {
-                expr
-            } else {
-                return unexpected_prev_token(lexer);
-            }
+            expect_token(lexer, &Token::RightParen)?;
+            expr
         }
         Token::LeftBracket => {
-            let mut args = vec![];
-
-            while lexer.peek() != Token::RightBracket {
-                args.push(parse_expr(lexer)?);
-
-                if lexer.peek() == Token::Comma {
-                    lexer.next();
-                } else {
-                    break;
-                }
-            }
-
-            if lexer.next() != Token::RightBracket {
-                return unexpected_prev_token(lexer);
-            }
-
+            let args = parse_list(lexer, &Token::RightBracket)?;
             Node::List(args)
         }
         _ => return unexpected_prev_token(lexer),
@@ -83,26 +90,23 @@ fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
 fn parse_apply(lexer: &mut Lexer) -> Result<Node, ParseError> {
     let mut out = parse_primitive(lexer)?;
 
-    while lexer.peek() == Token::LeftParen {
-        lexer.next();
-        let mut args = vec![];
-
-        while lexer.peek() != Token::RightParen {
-            args.push(parse_expr(lexer)?);
-
-            if lexer.peek() == Token::Comma {
-                lexer.next();
-            } else {
+    loop {
+        out = match lexer.next() {
+            Token::LeftParen => {
+                let args = parse_list(lexer, &Token::RightParen)?;
+                Node::Apply(Box::new(out), args)
+            }
+            Token::LeftBracket => {
+                let index = parse_expr(lexer)?;
+                expect_token(lexer, &Token::RightBracket)?;
+                Node::Index(Box::new(out), Box::new(index))
+            }
+            _ => {
+                lexer.prev();
                 break;
             }
         }
-
-        if lexer.next() != Token::RightParen {
-            return unexpected_prev_token(lexer);
-        }
-
-        out = Node::Apply(Box::new(out), args);
-    }
+    };
 
     Ok(out)
 }
@@ -191,7 +195,7 @@ fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
             Node::Lambda(args, Box::new(body))
         }
 
-        x => {
+        _ => {
             lexer.prev();
             lexer.prev();
             lexer.prev();

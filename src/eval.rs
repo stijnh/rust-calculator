@@ -270,6 +270,11 @@ fn bind_vars(node: &Node, bound: &Vec<String>, ctx: &Context) -> Result<Node, Ev
             }
             Node::Apply(fun, vals)
         }
+        Node::Index(lhs, rhs) => {
+            Node::Index(
+                Box::new(bind_vars(lhs, bound, ctx)?),
+                Box::new(bind_vars(lhs, bound, ctx)?))
+        }
         Node::List(args) => {
             let mut vals = vec![];
             for arg in args {
@@ -331,6 +336,9 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
                 vals.push(evaluate_node(arg, ctx)?);
             }
             evaluate_apply(&f, &vals)
+        }
+        Node::Index(lhs, rhs) => {
+            Err(EvalError(format!("index not implemented")))
         }
         Node::List(args) => {
             let mut vals = vec![];
