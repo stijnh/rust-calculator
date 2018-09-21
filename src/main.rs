@@ -1,3 +1,5 @@
+#![feature(box_syntax)]
+
 extern crate itertools;
 
 use self::itertools::join;

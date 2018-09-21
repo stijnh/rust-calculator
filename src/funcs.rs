@@ -3,7 +3,7 @@ extern crate rand;
 use self::rand::random;
 use eval::{Context, EvalError, Func, Value};
 use std::cmp;
-use std::f64::consts;
+use std::f64::{self, consts};
 use std::rc::Rc;
 
 fn set_const(ctx: &mut Context, key: &str, val: f64) {
@@ -89,6 +89,37 @@ where
     });
 }
 
+fn set_min_max(ctx: &mut Context) {
+    for (key, ord) in vec![
+        ("max", cmp::Ordering::Less),
+        ("min", cmp::Ordering::Greater),
+    ] {
+        set_closure(ctx, key, move |args| {
+            if args.is_empty() {
+                return Err(EvalError(format!("{} of empty sequence", key)));
+            }
+
+            let mut best = args[0].clone();
+
+            for arg in args {
+                if let Some(x) = best.partial_cmp(arg) {
+                    if x == ord {
+                        best = arg.clone();
+                    }
+                } else {
+                    return Err(EvalError(format!(
+                        "types '{}' and '{}' cannot be compared",
+                        best.type_name(),
+                        arg.type_name()
+                    )));
+                }
+            }
+
+            Ok(best)
+        });
+    }
+}
+
 pub fn create() -> Context<'static> {
     let mut ctx = Context::new();
 
@@ -96,9 +127,9 @@ pub fn create() -> Context<'static> {
         let c = &mut ctx;
         set_const(c, "pi", consts::PI);
         set_const(c, "e", consts::E);
-        set_const(c, "nan", consts::E);
-        set_const(c, "inf", consts::E);
-        set_const(c, "inf", consts::E);
+        set_const(c, "nan", f64::NAN);
+        set_const(c, "inf", f64::INFINITY);
+        set_const(c, "ninf", -f64::INFINITY);
 
         set_unary(c, "asin", |x| x.asin());
         set_unary(c, "acos", |x| x.acos());
@@ -122,34 +153,6 @@ pub fn create() -> Context<'static> {
         set_binary(c, "hypot", |x, y| x.hypot(y));
         set_binary(c, "atan2", |x, y| x.atan2(y));
 
-        for (key, ord) in &[
-            ("max", cmp::Ordering::Less),
-            ("min", cmp::Ordering::Greater),
-        ] {
-            set_closure(c, key, move |args| {
-                if args.is_empty() {
-                    return Err(EvalError(format!("{} of empty sequence", key)));
-                }
-
-                let mut best = args[0].clone();
-
-                for arg in args {
-                    if let Some(x) = best.partial_cmp(arg) {
-                        if x == *ord {
-                            best = arg.clone();
-                        }
-                    } else {
-                        return Err(EvalError(format!(
-                            "types '{}' and '{}' cannot be compared",
-                            best.type_name(),
-                            arg.type_name()
-                        )));
-                    }
-                }
-
-                Ok(best)
-            });
-        }
 
         set_closure(c, "rand", |args| {
             let (a, b) = match args.len() {

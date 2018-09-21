@@ -48,6 +48,10 @@ pub enum Value {
 }
 
 impl Value {
+    pub fn from_number(x: f64) -> Value {
+        Value::Number(x)
+    }
+
     pub fn as_number(&self) -> Option<f64> {
         match self {
             Value::Number(x) => Some(*x),
@@ -200,11 +204,10 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
     use Value::Boolean as B;
     use Value::Number as N;
 
-    let out = match (op, arg.clone()) {
-        (Op::Add, N(x)) => N(x),
-        (Op::Sub, N(x)) => N(-x),
-        (Op::Not, N(x)) => B(x == 0.0),
-        (Op::Not, B(x)) => B(!x),
+    let out = match (op, arg) {
+        (Op::Add, N(x)) => N(*x),
+        (Op::Sub, N(x)) => N(-*x),
+        (Op::Not, x) => B(!x.as_bool()),
         _ => {
             return Err(EvalError(format!(
                 "invalid unary operator '{}' for type {}",
@@ -218,17 +221,43 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
 }
 
 fn evaluate_apply(fun: &Value, args: &[Value]) -> Result<Value, EvalError> {
-    let fun = match fun {
-        Value::Function(f) => f,
-        _ => {
-            return Err(EvalError(format!(
-                "value of type {} is not callable",
-                fun.type_name()
-            )))
-        }
-    };
+    if let Value::Function(f) = fun {
+        f.call(args)
+    } else {
+        Err(EvalError(format!(
+            "value of type {} is not callable",
+            fun.type_name()
+        )))
+    }
+}
 
-    fun.call(args)
+fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
+    match (list, index) {
+        (Value::List(list), Value::Number(f)) => {
+            let i = f.round() as i64;
+            let n = list.len();
+
+            if !f.is_finite() || i as f64 != *f {
+                return Err(EvalError(format!(
+                            "{} cannot be used as index", f)))
+
+            }
+
+
+            match list.get(i as usize) {
+                Some(v) => Ok(v.clone()),
+                _ => Err(EvalError(format!(
+                            "index {} is out of bounds for list of size {}", i, n)))
+
+            }
+        },
+        (Value::List(_), x) => Err(EvalError(format!(
+                    "value of type {} cannot be used as index",
+                    x.type_name()))),
+        (x, _) => Err(EvalError(format!(
+                    "value of type {} cannot be indexed",
+                    x.type_name())))
+    }
 }
 
 fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalError> {
@@ -243,17 +272,17 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             }
         }
         Node::Lambda(args, body) => {
-            let new_bound = chain(args, bound).cloned().collect::<Vec<String>>();
-            Node::Lambda(args.clone(), Box::new(bind_vars(body, &new_bound, ctx)?))
+            let new_bound: Vec<_> = chain(args, bound).cloned().collect();
+            Node::Lambda(args.clone(), box bind_vars(body, &new_bound, ctx)?)
         }
         Node::BinOp(op, x, y) => Node::BinOp(
             *op,
-            Box::new(bind_vars(x, bound, ctx)?),
-            Box::new(bind_vars(y, bound, ctx)?),
+            box bind_vars(x, bound, ctx)?,
+            box bind_vars(y, bound, ctx)?,
         ),
-        Node::MonOp(op, x) => Node::MonOp(*op, Box::new(bind_vars(x, bound, ctx)?)),
+        Node::MonOp(op, x) => Node::MonOp(*op, box bind_vars(x, bound, ctx)?),
         Node::Apply(fun, args) => {
-            let fun = Box::new(bind_vars(fun, bound, ctx)?);
+            let fun = box bind_vars(fun, bound, ctx)?;
             let mut vals = vec![];
             for arg in args {
                 vals.push(bind_vars(arg, bound, ctx)?);
@@ -261,8 +290,8 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             Node::Apply(fun, vals)
         }
         Node::Index(lhs, rhs) => Node::Index(
-            Box::new(bind_vars(lhs, bound, ctx)?),
-            Box::new(bind_vars(lhs, bound, ctx)?),
+            box bind_vars(lhs, bound, ctx)?,
+            box bind_vars(lhs, bound, ctx)?,
         ),
         Node::List(args) => {
             let mut vals = vec![];
@@ -292,7 +321,7 @@ fn evaluate_lambda(
         body: bind_vars(body, params, ctx)?,
     };
 
-    Ok(Value::Function(Rc::new(Box::new(fun))))
+    Ok(Value::Function(Rc::new(box fun)))
 }
 
 fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
@@ -348,7 +377,11 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             }
             evaluate_apply(&f, &vals)
         }
-        Node::Index(lhs, rhs) => Err(EvalError(format!("index not implemented"))),
+        Node::Index(lhs, rhs) => {
+            let lhs = evaluate_node(lhs, ctx)?;
+            let rhs = evaluate_node(rhs, ctx)?;
+            evaluate_index(&lhs, &rhs)
+        }
         Node::List(args) => {
             let mut vals = vec![];
             for arg in args {

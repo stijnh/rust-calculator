@@ -216,21 +216,13 @@ impl Lexer {
     }
 
     pub fn peek(&self) -> Token {
-        if self.index < self.tokens.len() {
-            self.tokens[self.index].clone()
-        } else {
-            Token::End
-        }
+        self.tokens.get(self.index).cloned().unwrap_or(Token::End)
     }
 
     pub fn next(&mut self) -> Token {
+        let tok = self.peek();
         self.index += 1;
-
-        if self.index - 1 < self.tokens.len() {
-            self.tokens[self.index - 1].clone()
-        } else {
-            Token::End
-        }
+        tok
     }
 
     pub fn prev(&mut self) {
@@ -270,7 +262,7 @@ mod test {
         assert_eq!(stream.next(), '\0');
     }
 
-    fn test_match(string: &str, tokens: Vec<Token>) {
+    fn test_match(string: &str, tokens: impl IntoIterator<Item = Token>) {
         let mut lexer = tokenize(string);
 
         for tok in tokens {
@@ -282,15 +274,54 @@ mod test {
 
     #[test]
     fn test_operators() {
-        let string = "+ - * / not and or";
+        let string = "+ - * / not and or == != < > <= >=";
         let tokens = vec![
-            Token::Operator(Op::Add),
-            Token::Operator(Op::Sub),
-            Token::Operator(Op::Mul),
-            Token::Operator(Op::Div),
-            Token::Operator(Op::Not),
-            Token::Operator(Op::And),
+            Op::Add,
+            Op::Sub,
+            Op::Mul,
+            Op::Div,
+            Op::Not,
+            Op::And,
+            Op::Or,
+            Op::Eq,
+            Op::Neq,
+            Op::Lt,
+            Op::Gt,
+            Op::Lte,
+            Op::Gte,
+        ].into_iter()
+        .map(|x| Token::Operator(x));
+
+        test_match(string, tokens);
+    }
+
+    #[test]
+    fn test_tokens() {
+        let string = "( ) [ ] , = => ?";
+        let tokens = vec![
+            Token::LeftParen,
+            Token::RightParen,
+            Token::LeftBracket,
+            Token::RightBracket,
+            Token::Comma,
+            Token::Assign,
+            Token::Arrow,
+            Token::Unknown('?'),
+        ];
+
+        test_match(string, tokens);
+    }
+
+    #[test]
+    fn test_idents() {
+        let string = "true false or and not foo";
+        let tokens = vec![
+            Token::True,
+            Token::False,
             Token::Operator(Op::Or),
+            Token::Operator(Op::And),
+            Token::Operator(Op::Not),
+            Token::Ident("foo".into()),
         ];
 
         test_match(string, tokens);
