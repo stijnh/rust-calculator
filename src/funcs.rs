@@ -90,10 +90,12 @@ where
 }
 
 fn set_min_max(ctx: &mut Context) {
-    for (key, ord) in vec![
+    for (key, ord) in &[
         ("max", cmp::Ordering::Less),
         ("min", cmp::Ordering::Greater),
     ] {
+        let ord = *ord;
+
         set_closure(ctx, key, move |args| {
             if args.is_empty() {
                 return Err(EvalError(format!("{} of empty sequence", key)));
@@ -152,7 +154,6 @@ pub fn create() -> Context<'static> {
         set_binary(c, "log", |x, y| x.log(y));
         set_binary(c, "hypot", |x, y| x.hypot(y));
         set_binary(c, "atan2", |x, y| x.atan2(y));
-
 
         set_closure(c, "rand", |args| {
             let (a, b) = match args.len() {

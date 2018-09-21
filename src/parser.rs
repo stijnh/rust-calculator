@@ -2,7 +2,6 @@ use eval::Value;
 pub use lexer::Op;
 pub use lexer::Span;
 use lexer::{Lexer, Token};
-use std::f64;
 
 #[derive(Clone, Debug)]
 pub enum Node {

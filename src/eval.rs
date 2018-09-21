@@ -3,6 +3,7 @@ extern crate itertools;
 use self::itertools::chain;
 use parser::{Node, Op};
 use std::collections::HashMap;
+use std::f64::EPSILON;
 use std::rc::Rc;
 use std::{cmp, fmt};
 
@@ -237,26 +238,26 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
             let i = f.round() as i64;
             let n = list.len();
 
-            if !f.is_finite() || i as f64 != *f {
-                return Err(EvalError(format!(
-                            "{} cannot be used as index", f)))
-
+            if !f.is_finite() || (*f - i as f64).abs() <= EPSILON {
+                return Err(EvalError(format!("{} cannot be used as index", f)));
             }
-
 
             match list.get(i as usize) {
                 Some(v) => Ok(v.clone()),
                 _ => Err(EvalError(format!(
-                            "index {} is out of bounds for list of size {}", i, n)))
-
+                    "index {} is out of bounds for list of size {}",
+                    i, n
+                ))),
             }
-        },
+        }
         (Value::List(_), x) => Err(EvalError(format!(
-                    "value of type {} cannot be used as index",
-                    x.type_name()))),
+            "value of type {} cannot be used as index",
+            x.type_name()
+        ))),
         (x, _) => Err(EvalError(format!(
-                    "value of type {} cannot be indexed",
-                    x.type_name())))
+            "value of type {} cannot be indexed",
+            x.type_name()
+        ))),
     }
 }
 
@@ -291,7 +292,7 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
         }
         Node::Index(lhs, rhs) => Node::Index(
             box bind_vars(lhs, bound, ctx)?,
-            box bind_vars(lhs, bound, ctx)?,
+            box bind_vars(rhs, bound, ctx)?,
         ),
         Node::List(args) => {
             let mut vals = vec![];
