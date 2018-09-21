@@ -21,6 +21,9 @@ pub enum Op {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
+    If,
+    Then,
+    Else,
     True,
     False,
     LeftParen,
@@ -73,6 +76,9 @@ impl Token {
             Token::Operator(x) => return x.name(),
             Token::True => "true",
             Token::False => "false",
+            Token::If => "if",
+            Token::Then => "then",
+            Token::Else => "else",
             Token::End => "<end>",
         }.into()
     }
@@ -132,6 +138,9 @@ impl Lexer {
                 "not" => Token::Operator(Op::Not),
                 "true" => Token::True,
                 "false" => Token::False,
+                "if" => Token::If,
+                "then" => Token::Then,
+                "else" => Token::Else,
                 _ => Token::Ident(buffer),
             };
         }
@@ -314,10 +323,13 @@ mod test {
 
     #[test]
     fn test_idents() {
-        let string = "true false or and not foo";
+        let string = "true false if then else or and not foo";
         let tokens = vec![
             Token::True,
             Token::False,
+            Token::If,
+            Token::Then,
+            Token::Else,
             Token::Operator(Op::Or),
             Token::Operator(Op::And),
             Token::Operator(Op::Not),

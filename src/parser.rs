@@ -11,6 +11,7 @@ pub enum Node {
     Apply(Box<Node>, Vec<Node>),
     Index(Box<Node>, Box<Node>),
     Lambda(Vec<String>, Box<Node>),
+    //Cond(Box<Node>, Box<Node>, Box<Node>),
     List(Vec<Node>),
     Var(String),
     VarDef(String, Box<Node>),
@@ -218,26 +219,33 @@ fn parse_expr(lexer: &mut Lexer) -> Result<Node, ParseError> {
 }
 
 fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
-    let out = match (lexer.next(), lexer.next()) {
-        (Token::Ident(var), Token::Assign) => {
-            let val = parse_statement(lexer)?;
+    let lhs = parse_expr(lexer)?;
 
-            match val {
+    Ok(match (lhs, lexer.next()) {
+        (out, Token::End) => out,
+        (Node::Var(var), Token::Assign) => {
+            let body = parse_statement(lexer)?;
+            match body {
                 Node::Lambda(args, body) => Node::FunDef(var, args, body),
-                val => Node::VarDef(var, box val)
+                body => Node::VarDef(var, box body)
             }
         }
-        _ => {
-            lexer.prev();
-            lexer.prev();
-            parse_expr(lexer)?
-        }
-    };
+        (Node::Apply(box Node::Var(var), args), Token::Assign) => {
+            let mut params = vec![];
 
-    match lexer.peek() {
-        Token::End => Ok(out),
-        _ => unexpected_token(lexer),
-    }
+            for arg in args {
+                if let Node::Var(name) = arg {
+                    params.push(name);
+                } else {
+                    return unexpected_prev_token(lexer);
+                }
+            }
+
+            let body = parse_statement(lexer)?;
+            Node::FunDef(var, params, box body)
+        }
+        _ => unexpected_prev_token(lexer)?
+    })
 }
 
 pub fn parse(mut lexer: Lexer) -> Result<Node, ParseError> {
