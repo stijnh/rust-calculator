@@ -161,14 +161,22 @@ fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
             Node::Lambda(args, Box::new(body))
         }
 
-        // Case 2: (x) => body
+        // Case 2: () => body
+        (Token::LeftParen, Token::RightParen, Token::Arrow, _) => {
+            lexer.prev();
+            let args = vec![];
+            let body = parse_lambda(lexer)?;
+            Node::Lambda(args, Box::new(body))
+        }
+
+        // Case 3: (x) => body
         (Token::LeftParen, Token::Ident(x), Token::RightParen, Token::Arrow) => {
             let args = vec![x];
             let body = parse_lambda(lexer)?;
             Node::Lambda(args, Box::new(body))
         }
 
-        // Case 3: (x, y, z) => body
+        // Case 4: (x, y, z) => body
         (Token::LeftParen, Token::Ident(x), Token::Comma, Token::Ident(y)) => {
             let mut args = vec![x, y];
 
