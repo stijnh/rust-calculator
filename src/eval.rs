@@ -16,7 +16,7 @@ pub trait Func {
 struct ClosureFunc {
     name: Option<String>,
     params: Vec<String>,
-    body: Node,
+    body: RefCell<Node>,
 }
 
 impl Func for ClosureFunc {
@@ -37,21 +37,7 @@ impl Func for ClosureFunc {
             ctx.set(param, arg.clone());
         }
 
-        evaluate_node(&self.body, &mut ctx)
-    }
-}
-
-struct CellFunc {
-    cell: RefCell<ClosureFunc>
-}
-
-impl Func for CellFunc {
-    fn name(&self) -> Option<&str> {
-        None //self.cell.borrow().name()
-    }
-
-    fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
-        self.cell.borrow().call(args)
+        evaluate_node(&self.body.borrow(), &mut ctx)
     }
 }
 
@@ -335,7 +321,7 @@ fn evaluate_lambda(
     let fun = ClosureFunc {
         name: name.map(|x| format!("user-defined {}", x)),
         params: params.to_owned(),
-        body: bind_vars(body, params, ctx)?,
+        body: bind_vars(body, params, ctx)?.into(),
     };
 
     Ok(Value::Function(Rc::new(fun)))
@@ -353,13 +339,12 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             let dummy = ClosureFunc {
                 name: Some(var.clone()),
                 params: params.to_owned(),
-                body: Node::Var("?".into())
+                body: Node::Var("?".into()).into()
             };
-
-            let cell = Rc::new(CellFunc { cell: RefCell::new(dummy) });
+            let cell = Rc::new(dummy);
             let fun = Value::Function(cell.clone());
 
-            cell.cell.borrow_mut().body = {
+            *cell.body.borrow_mut() = {
                 let mut child_ctx = Context::with_parent(ctx);
                 child_ctx.set(var, fun.clone());
                 bind_vars(body, params, &child_ctx)?
