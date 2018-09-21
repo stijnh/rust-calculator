@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::f64::EPSILON;
 use std::rc::Rc;
 use std::{cmp, fmt};
+use std::cell::RefCell;
 
 pub trait Func {
     fn name(&self) -> Option<&str>;
@@ -40,12 +41,27 @@ impl Func for ClosureFunc {
     }
 }
 
+struct CellFunc {
+    cell: RefCell<ClosureFunc>
+}
+
+impl Func for CellFunc {
+    fn name(&self) -> Option<&str> {
+        None //self.cell.borrow().name()
+    }
+
+    fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
+        self.cell.borrow().call(args)
+    }
+}
+
+
 #[derive(Clone)]
 pub enum Value {
     Number(f64),
     Boolean(bool),
     List(Rc<Vec<Value>>),
-    Function(Rc<Box<Func>>),
+    Function(Rc<dyn Func>),
 }
 
 impl Value {
@@ -263,9 +279,9 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
 
 fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalError> {
     let out = match node {
-        Node::Load(var) => {
+        Node::Var(var) => {
             if bound.contains(var) {
-                Node::Load(var.clone())
+                Node::Var(var.clone())
             } else if let Some(val) = ctx.get(var) {
                 Node::Immediate(val.clone())
             } else {
@@ -302,7 +318,7 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             Node::List(vals)
         }
         Node::Immediate(_) => node.clone(),
-        Node::Store(_, _) => {
+        Node::VarDef(_, _) | Node::FunDef(_, _, _) => {
             return Err(EvalError("assignment within lambda is not allowed".into()))
         }
     };
@@ -322,22 +338,37 @@ fn evaluate_lambda(
         body: bind_vars(body, params, ctx)?,
     };
 
-    Ok(Value::Function(Rc::new(box fun)))
+    Ok(Value::Function(Rc::new(fun)))
 }
 
 fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
     match node {
         Node::Immediate(val) => Ok(val.clone()),
-        Node::Store(key, arg) => {
-            let val = match arg.as_ref() {
-                Node::Lambda(args, body) => evaluate_lambda(Some(key), args, body, ctx)?,
-                _ => evaluate_node(arg, ctx)?,
-            };
-
+        Node::VarDef(key, arg) => {
+            let val = evaluate_node(arg, ctx)?;
             ctx.set(key, val.clone());
             Ok(val)
         }
-        Node::Load(var) => {
+        Node::FunDef(var, params, body) => {
+            let dummy = ClosureFunc {
+                name: Some(var.clone()),
+                params: params.to_owned(),
+                body: Node::Var("?".into())
+            };
+
+            let cell = Rc::new(CellFunc { cell: RefCell::new(dummy) });
+            let fun = Value::Function(cell.clone());
+
+            cell.cell.borrow_mut().body = {
+                let mut child_ctx = Context::with_parent(ctx);
+                child_ctx.set(var, fun.clone());
+                bind_vars(body, params, &child_ctx)?
+            };
+
+            ctx.set(var, fun.clone());
+            Ok(fun)
+        }
+        Node::Var(var) => {
             if let Some(val) = ctx.get(var) {
                 Ok(val)
             } else {

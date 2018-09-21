@@ -12,8 +12,9 @@ pub enum Node {
     Index(Box<Node>, Box<Node>),
     Lambda(Vec<String>, Box<Node>),
     List(Vec<Node>),
-    Load(String),
-    Store(String, Box<Node>),
+    Var(String),
+    VarDef(String, Box<Node>),
+    FunDef(String, Vec<String>, Box<Node>)
 }
 
 #[derive(Debug)]
@@ -63,7 +64,7 @@ fn parse_primitive(lexer: &mut Lexer) -> Result<Node, ParseError> {
     let out = match lexer.next() {
         Token::True => Node::Immediate(Value::Boolean(true)),
         Token::False => Node::Immediate(Value::Boolean(false)),
-        Token::Ident(name) => Node::Load(name),
+        Token::Ident(name) => Node::Var(name),
         Token::Number(num) => {
             if let Ok(x) = num.parse() {
                 Node::Immediate(Value::Number(x))
@@ -220,7 +221,11 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
     let out = match (lexer.next(), lexer.next()) {
         (Token::Ident(var), Token::Assign) => {
             let val = parse_statement(lexer)?;
-            Node::Store(var, Box::new(val))
+
+            match val {
+                Node::Lambda(args, body) => Node::FunDef(var, args, body),
+                val => Node::VarDef(var, box val)
+            }
         }
         _ => {
             lexer.prev();

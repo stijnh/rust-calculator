@@ -59,7 +59,7 @@ where
 {
     let f = ClosureFunction(key.to_string(), fun);
 
-    ctx.set(key, Value::Function(Rc::new(Box::new(f))));
+    ctx.set(key, Value::Function(Rc::new(f)));
 }
 
 fn set_unary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
