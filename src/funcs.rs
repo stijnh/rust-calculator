@@ -29,13 +29,32 @@ fn check_num_args(name: &str, args: &[Value], want: usize) -> Result<(), EvalErr
     }
 }
 
-fn check_number(arg: &Value) -> Result<f64, EvalError> {
-    match arg.as_number() {
-        Some(x) => Ok(x),
+fn cast_function(arg: &Value) -> Result<&dyn Func, EvalError> {
+    match arg {
+        Value::Function(fun) => Ok(&**fun),
         _ => Err(EvalError(format!(
-            "invalid cast of {} to number",
-            arg.type_name()
-        ))),
+                    "invalid cast of {} to function",
+                    arg.type_name())))
+    }
+}
+
+fn cast_list(arg: &Value) -> Result<&[Value], EvalError> {
+    match arg {
+        Value::List(list) => Ok(list),
+        _ => Err(EvalError(format!(
+                    "invalid cast of {} to list",
+                    arg.type_name())))
+    }
+}
+
+fn cast_float(arg: &Value) -> Result<f64, EvalError> {
+    match arg {
+        Value::Number(x) => Ok(*x),
+        Value::Boolean(true) => Ok(1.0),
+        Value::Boolean(false) => Ok(0.0),
+        _ => Err(EvalError(format!(
+                    "invalid cast of {} to number",
+                    arg.type_name())))
     }
 }
 
@@ -69,7 +88,7 @@ where
     let name = key.to_owned();
     set_closure(ctx, key, move |args: &[Value]| {
         check_num_args(&name, args, 1)?;
-        let x = check_number(&args[0])?;
+        let x = cast_float(&args[0])?;
 
         Ok(Value::Number(fun(x)))
     });
@@ -82,14 +101,14 @@ where
     let name = key.to_owned();
     set_closure(ctx, key, move |args: &[Value]| {
         check_num_args(&name, args, 2)?;
-        let x = check_number(&args[0])?;
-        let y = check_number(&args[1])?;
+        let x = cast_float(&args[0])?;
+        let y = cast_float(&args[1])?;
 
         Ok(Value::Number(fun(x, y)))
     });
 }
 
-fn set_min_max(ctx: &mut Context) {
+fn set_util(ctx: &mut Context) {
     for (key, ord) in &[
         ("max", cmp::Ordering::Less),
         ("min", cmp::Ordering::Greater),
@@ -100,6 +119,11 @@ fn set_min_max(ctx: &mut Context) {
             if args.is_empty() {
                 return Err(EvalError(format!("{} of empty sequence", key)));
             }
+
+            let args = match args {
+                [Value::List(list)] => list,
+                x => x
+            };
 
             let mut best = args[0].clone();
 
@@ -120,6 +144,69 @@ fn set_min_max(ctx: &mut Context) {
             Ok(best)
         });
     }
+
+    set_closure(ctx, "rand", |args| {
+        let a = args.get(0).map(cast_float).transpose()?.unwrap_or(0.0);
+        let b = args.get(1).map(cast_float).transpose()?.unwrap_or(1.0);
+
+        let out = (b - a) * random::<f64>() + a;
+        Ok(Value::Number(out))
+    });
+
+    set_closure(ctx, "range", |args| {
+        check_num_args("range", args, 1)?;
+        let n = cast_float(&args[0])?;
+
+        let mut i = 0;
+        let mut list = vec![];
+
+        while (i as f64) < n {
+            list.push(Value::Number(i as f64));
+            i += 1;
+        }
+
+        Ok(Value::List(list.into()))
+    });
+
+    set_closure(ctx, "map", |args| {
+        check_num_args("map", args, 2)?;
+        let fun = cast_function(&args[0])?;
+        let list = cast_list(&args[1])?;
+
+        let out = list
+            .iter()
+            .map(|x| fun.call(&[x.clone()]))
+            .collect::<Result<Vec<Value>, _>>()?;
+
+        Ok(Value::List(out.into()))
+    });
+
+    set_closure(ctx, "linspace", |args| {
+        check_num_args("linspace", args, 3)?;
+        let lbnd = cast_float(&args[0])?;
+        let ubnd = cast_float(&args[1])?;
+        let steps = cast_float(&args[2])?;
+        let n = steps.floor() as i64;
+
+        if n <= 2 {
+            return Err(EvalError(format!("number of steps cannot be less than 2, got {}", steps)));
+        }
+
+        let list = (0..n).map(|i| (i as f64) / ((n - 1) as f64))
+                         .map(|v| (1.0 - v) * lbnd + v * ubnd)
+                         .map(|v| Value::Number(v))
+                         .collect::<Vec<_>>();
+
+        Ok(Value::List(list.into()))
+    });
+
+    set_closure(ctx, "sort", |args| {
+        check_num_args("sort", args, 1)?;
+        let mut list = cast_list(&args[0])?.to_vec();
+        list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(cmp::Ordering::Equal));
+
+        Ok(Value::List(list.into()))
+    });
 }
 
 pub fn create() -> Context<'static> {
@@ -155,16 +242,7 @@ pub fn create() -> Context<'static> {
         set_binary(c, "hypot", |x, y| x.hypot(y));
         set_binary(c, "atan2", |x, y| x.atan2(y));
 
-        set_closure(c, "rand", |args| {
-            let (a, b) = match args.len() {
-                0 => (0.0, 1.0),
-                1 => (0.0, check_number(&args[0])?),
-                _ => (check_number(&args[0])?, check_number(&args[1])?),
-            };
-
-            let out = (b - a) * random::<f64>() + a;
-            Ok(Value::Number(out))
-        });
+        set_util(c);
     }
 
     ctx

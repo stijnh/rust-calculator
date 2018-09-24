@@ -11,7 +11,7 @@ pub enum Node {
     Apply(Box<Node>, Vec<Node>),
     Index(Box<Node>, Box<Node>),
     Lambda(Vec<String>, Box<Node>),
-    //Cond(Box<Node>, Box<Node>, Box<Node>),
+    Cond(Box<Node>, Box<Node>, Box<Node>),
     List(Vec<Node>),
     Var(String),
     VarDef(String, Box<Node>),
@@ -151,6 +151,24 @@ fn parse_binop(lexer: &mut Lexer, prec: i32) -> Result<Node, ParseError> {
     }
 }
 
+fn parse_cond(lexer: &mut Lexer) -> Result<Node, ParseError> {
+    let mut lhs = parse_binop(lexer, 0)?;
+
+    loop {
+        if lexer.next() != Token::If {
+            lexer.prev();
+            break Ok(lhs);
+        }
+
+        let cond = parse_expr(lexer)?;
+        expect_token(lexer, &Token::Else)?;
+        let rhs = parse_expr(lexer)?;
+
+        lhs = Node::Cond(box cond, box lhs, box rhs);
+    }
+}
+
+
 fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
     let out = match (lexer.next(), lexer.next(), lexer.next(), lexer.next()) {
         // Case 1: x => body
@@ -207,7 +225,7 @@ fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
             lexer.prev();
             lexer.prev();
             lexer.prev();
-            parse_binop(lexer, 0)?
+            parse_cond(lexer)?
         }
     };
 

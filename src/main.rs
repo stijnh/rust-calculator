@@ -1,4 +1,5 @@
 #![feature(box_syntax, box_patterns)]
+#![feature(transpose_result)]
 
 extern crate itertools;
 

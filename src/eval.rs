@@ -55,15 +55,6 @@ impl Value {
         Value::Number(x)
     }
 
-    pub fn as_number(&self) -> Option<f64> {
-        match self {
-            Value::Number(x) => Some(*x),
-            Value::Boolean(true) => Some(1.0),
-            Value::Boolean(false) => Some(0.0),
-            _ => None,
-        }
-    }
-
     pub fn as_bool(&self) -> bool {
         match self {
             Value::Boolean(x) => *x,
@@ -240,7 +231,7 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
             let i = f.round() as i64;
             let n = list.len();
 
-            if !f.is_finite() || (*f - i as f64).abs() <= EPSILON {
+            if !f.is_finite() || (*f - i as f64).abs() > EPSILON {
                 return Err(EvalError(format!("{} cannot be used as index", f)));
             }
 
@@ -251,6 +242,15 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
                     i, n
                 ))),
             }
+        }
+        (list, Value::List(indices)) => {
+            let mut result = vec![];
+
+            for index in indices.iter() {
+                result.push(evaluate_index(list, index)?);
+            }
+
+            Ok(Value::List(result.into()))
         }
         (Value::List(_), x) => Err(EvalError(format!(
             "value of type {} cannot be used as index",
@@ -293,6 +293,11 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             Node::Apply(fun, vals)
         }
         Node::Index(lhs, rhs) => Node::Index(
+            box bind_vars(lhs, bound, ctx)?,
+            box bind_vars(rhs, bound, ctx)?,
+        ),
+        Node::Cond(cond, lhs, rhs) => Node::Cond(
+            box bind_vars(cond, bound, ctx)?,
             box bind_vars(lhs, bound, ctx)?,
             box bind_vars(rhs, bound, ctx)?,
         ),
@@ -376,7 +381,15 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
                 Ok(x)
             }
         }
+        Node::Cond(cond, lhs, rhs) => {
+            let x = evaluate_node(cond, ctx)?;
 
+            if x.as_bool() {
+                evaluate_node(lhs, ctx)
+            } else {
+                evaluate_node(rhs, ctx)
+            }
+        }
         Node::BinOp(op, lhs, rhs) => {
             let x = evaluate_node(lhs, ctx)?;
             let y = evaluate_node(rhs, ctx)?;
