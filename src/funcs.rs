@@ -153,8 +153,14 @@ fn set_util(ctx: &mut Context) {
     }
 
     set_closure(ctx, "rand", |args| {
-        let a = args.get(0).map(cast_float).transpose()?.unwrap_or(0.0);
-        let b = args.get(1).map(cast_float).transpose()?.unwrap_or(1.0);
+        let a = args.get(0).map(cast_float).transpose()?;
+        let b = args.get(1).map(cast_float).transpose()?;
+
+        let (a, b) = match (a, b) {
+            (Some(x), Some(y)) => (x, y),
+            (Some(x), None) => (0.0, x),
+            _ => (0.0, 1.0)
+        };
 
         let out = (b - a) * random::<f64>() + a;
         Ok(Value::Number(out))
@@ -244,7 +250,6 @@ pub fn create() -> Context<'static> {
         set_const(c, "e", consts::E);
         set_const(c, "nan", f64::NAN);
         set_const(c, "inf", f64::INFINITY);
-        set_const(c, "ninf", -f64::INFINITY);
 
         set_unary(c, "asin", |x| x.asin());
         set_unary(c, "acos", |x| x.acos());

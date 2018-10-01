@@ -88,7 +88,13 @@ impl fmt::Debug for Value {
 impl cmp::PartialOrd for Value {
     fn partial_cmp(&self, other: &Value) -> Option<cmp::Ordering> {
         match (self, other) {
-            (Value::Number(x), Value::Number(y)) => x.partial_cmp(y),
+            (Value::Number(x), Value::Number(y)) => {
+                if let Some(x) = x.partial_cmp(y) {
+                    Some(x)
+                } else {
+                    y.is_nan().partial_cmp(&x.is_nan())
+                }
+            }
             (Value::Boolean(x), Value::Boolean(y)) => x.partial_cmp(y),
             (Value::List(x), Value::List(y)) => x.partial_cmp(y),
             (Value::Function(x), Value::Function(y)) => {
