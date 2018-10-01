@@ -69,20 +69,20 @@ fn cast_float(arg: &Value) -> Result<f64, EvalError> {
 struct ClosureFunction<F>(String, F);
 impl<F> Func for ClosureFunction<F>
 where
-    F: Fn(&[Value]) -> Result<Value, EvalError>,
+    F: Fn(&[Value], &mut Context) -> Result<Value, EvalError>,
 {
     fn name(&self) -> Option<&str> {
         Some(&self.0)
     }
 
-    fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
-        self.1(args)
+    fn call(&self, args: &[Value], ctx: &mut Context) -> Result<Value, EvalError> {
+        self.1(args, ctx)
     }
 }
 
 fn set_closure<F: 'static>(ctx: &mut Context, key: &str, fun: F)
 where
-    F: Fn(&[Value]) -> Result<Value, EvalError>,
+    F: Fn(&[Value], &mut Context) -> Result<Value, EvalError>,
 {
     let f = ClosureFunction(key.to_string(), fun);
     ctx.set(key, Value::Function(Rc::new(f)));
@@ -93,7 +93,7 @@ where
     F: Fn(f64) -> f64,
 {
     let name = key.to_owned();
-    set_closure(ctx, key, move |args: &[Value]| {
+    set_closure(ctx, key, move |args, _| {
         let x = check_args_1(&name, args)?;
         let x = cast_float(x)?;
 
@@ -106,7 +106,7 @@ where
     F: Fn(f64, f64) -> f64,
 {
     let name = key.to_owned();
-    set_closure(ctx, key, move |args: &[Value]| {
+    set_closure(ctx, key, move |args, _| {
         let [x, y] = check_args_2(&name, args)?;
         let x = cast_float(x)?;
         let y = cast_float(y)?;
@@ -122,7 +122,7 @@ fn set_util(ctx: &mut Context) {
     ] {
         let ord = *ord;
 
-        set_closure(ctx, key, move |args| {
+        set_closure(ctx, key, move |args, _| {
             if args.is_empty() {
                 raise!(EvalError, "{} of empty sequence", key);
             }
@@ -152,7 +152,7 @@ fn set_util(ctx: &mut Context) {
         });
     }
 
-    set_closure(ctx, "rand", |args| {
+    set_closure(ctx, "rand", |args, _| {
         let a = args.get(0).map(cast_float).transpose()?;
         let b = args.get(1).map(cast_float).transpose()?;
 
@@ -166,7 +166,7 @@ fn set_util(ctx: &mut Context) {
         Ok(Value::Number(out))
     });
 
-    set_closure(ctx, "range", |args| {
+    set_closure(ctx, "range", |args, _| {
         let a = args.get(0).map(cast_float).transpose()?;
         let b = args.get(1).map(cast_float).transpose()?;
 
@@ -187,20 +187,20 @@ fn set_util(ctx: &mut Context) {
         Ok(Value::List(list.into()))
     });
 
-    set_closure(ctx, "map", |args| {
+    set_closure(ctx, "map", |args, ctx| {
         let [fun, list] = check_args_2("map", args)?;
         let fun = cast_function(fun)?;
         let list = cast_list(list)?;
 
         let out = list
             .iter()
-            .map(|x| fun.call(&[x.clone()]))
+            .map(|x| ctx.call(fun, &[x.clone()]))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Value::List(out.into()))
     });
 
-    set_closure(ctx, "linspace", |args| {
+    set_closure(ctx, "linspace", |args, _| {
         let [lbnd, ubnd, steps] = check_args_3("linspace", args)?;
         let lbnd = cast_float(lbnd)?;
         let ubnd = cast_float(ubnd)?;
@@ -219,7 +219,7 @@ fn set_util(ctx: &mut Context) {
         Ok(Value::List(list.into()))
     });
 
-    set_closure(ctx, "sort", |args| {
+    set_closure(ctx, "sort", |args, _| {
         let list = check_args_1("sort", args)?;
         let mut vec = cast_list(list)?.to_vec();
         vec.sort_by(|a, b| a.partial_cmp(b).unwrap_or(cmp::Ordering::Equal));
@@ -227,7 +227,7 @@ fn set_util(ctx: &mut Context) {
         Ok(Value::List(vec.into()))
     });
 
-    set_closure(ctx, "length", |args| {
+    set_closure(ctx, "length", |args, _| {
         let list = check_args_1("length", args)?;
         let n = cast_list(list)?.len();
 

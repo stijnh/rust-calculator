@@ -1,5 +1,6 @@
 extern crate itertools;
 
+use std::ops::Deref;
 use self::itertools::chain;
 use parser::{Node, Op};
 use std::collections::HashMap;
@@ -10,7 +11,7 @@ use std::cell::RefCell;
 
 pub trait Func {
     fn name(&self) -> Option<&str>;
-    fn call(&self, args: &[Value]) -> Result<Value, EvalError>;
+    fn call(&self, args: &[Value], ctx: &mut Context) -> Result<Value, EvalError>;
 }
 
 struct ClosureFunc {
@@ -27,12 +28,12 @@ impl Func for ClosureFunc {
         }
     }
 
-    fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
+    fn call(&self, args: &[Value], parent: &mut Context) -> Result<Value, EvalError> {
         if self.params.len() != args.len() {
             raise!(EvalError, "wrong number of arguments")
         }
 
-        let mut ctx = Context::new();
+        let mut ctx = Context::with_parent(parent);
         for (param, arg) in self.params.iter().zip(args) {
             ctx.set(param, arg.clone());
         }
@@ -119,6 +120,7 @@ impl cmp::PartialEq for Value {
 pub struct EvalError(pub String);
 
 pub struct Context<'a> {
+    stack: Vec<String>,
     parent: Option<&'a Context<'a>>,
     scope: HashMap<String, Value>,
 }
@@ -126,6 +128,7 @@ pub struct Context<'a> {
 impl<'a> Context<'a> {
     pub fn new() -> Self {
         Context {
+            stack: vec![],
             parent: None,
             scope: HashMap::new(),
         }
@@ -133,6 +136,7 @@ impl<'a> Context<'a> {
 
     pub fn with_parent(ctx: &'a Context) -> Self {
         Context {
+            stack: ctx.stack.clone(),
             parent: Some(ctx),
             scope: HashMap::new(),
         }
@@ -152,6 +156,19 @@ impl<'a> Context<'a> {
 
     pub fn set(&mut self, key: &str, val: Value) {
         self.scope.insert(key.into(), val);
+    }
+
+    pub fn call(&mut self, fun: &dyn Func, args: &[Value]) -> Result<Value, EvalError> {
+        if self.stack.len() >= 512 {
+            raise!(EvalError, "stack overflow, call depth cannot exceed {}", self.stack.len())
+        }
+
+        let name = fun.name().unwrap_or("anonymous function").to_string();
+
+        self.stack.push(name);
+        let result = fun.call(args, self);
+        self.stack.pop();
+        result
     }
 }
 
@@ -219,9 +236,9 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
     Ok(out)
 }
 
-fn evaluate_apply(fun: &Value, args: &[Value]) -> Result<Value, EvalError> {
+fn evaluate_apply(fun: &Value, args: &[Value], ctx: &mut Context) -> Result<Value, EvalError> {
     if let Value::Function(f) = fun {
-        f.call(args)
+        ctx.call(f.deref(), args)
     } else {
         Err(EvalError(format!(
             "value of type {} is not callable",
@@ -410,7 +427,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             for arg in args {
                 vals.push(evaluate_node(arg, ctx)?);
             }
-            evaluate_apply(&f, &vals)
+            evaluate_apply(&f, &vals, ctx)
         }
         Node::Index(lhs, rhs) => {
             let lhs = evaluate_node(lhs, ctx)?;
