@@ -29,7 +29,7 @@ impl Func for ClosureFunc {
 
     fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
         if self.params.len() != args.len() {
-            return Err(EvalError("wrong number of arguments".to_string()));
+            raise!(EvalError, "wrong number of arguments")
         }
 
         let mut ctx = Context::new();
@@ -46,7 +46,7 @@ impl Func for ClosureFunc {
 pub enum Value {
     Number(f64),
     Boolean(bool),
-    List(Rc<Vec<Value>>),
+    List(Rc<[Value]>),
     Function(Rc<dyn Func>),
 }
 
@@ -171,7 +171,7 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
             let mut tmp = vec![];
             tmp.extend(x.iter().cloned());
             tmp.extend(y.iter().cloned());
-            L(Rc::new(tmp))
+            L(tmp.into())
         }
 
         (Op::Add, N(x), N(y)) => N(x + y),
@@ -182,12 +182,11 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
         (Op::Mul, B(x), B(y)) => B(x && y),
         (Op::Add, B(x), B(y)) => B(x || y),
         _ => {
-            return Err(EvalError(format!(
-                "invalid binary operator '{}' for types {} and {}",
-                op.name(),
-                lhs.type_name(),
-                rhs.type_name()
-            )));
+            raise!(EvalError,
+                   "invalid binary operator '{}' for types {} and {}",
+                   op.name(),
+                    lhs.type_name(),
+                    rhs.type_name())
         }
     };
 
@@ -203,11 +202,11 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
         (Op::Sub, N(x)) => N(-*x),
         (Op::Not, x) => B(!x.as_bool()),
         _ => {
-            return Err(EvalError(format!(
+            raise!(EvalError,
                 "invalid unary operator '{}' for type {}",
                 op.name(),
                 arg.type_name()
-            )));
+            );
         }
     };
 
@@ -232,7 +231,7 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
             let n = list.len();
 
             if !f.is_finite() || (*f - i as f64).abs() > EPSILON {
-                return Err(EvalError(format!("{} cannot be used as index", f)));
+                raise!(EvalError, "{} cannot be used as index", f)
             }
 
             match list.get(i as usize) {
@@ -271,7 +270,7 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             } else if let Some(val) = ctx.get(var) {
                 Node::Immediate(val.clone())
             } else {
-                return Err(EvalError(format!("undefined variable '{}'", var)));
+                raise!(EvalError, "undefined variable '{}'", var)
             }
         }
         Node::Lambda(args, body) => {
@@ -310,7 +309,7 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
         }
         Node::Immediate(_) => node.clone(),
         Node::VarDef(_, _) | Node::FunDef(_, _, _) => {
-            return Err(EvalError("assignment within lambda is not allowed".into()))
+            raise!(EvalError, "assignment within lambda is not allowed")
         }
     };
 
@@ -417,7 +416,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             for arg in args {
                 vals.push(evaluate_node(arg, ctx)?);
             }
-            Ok(Value::List(Rc::new(vals)))
+            Ok(Value::List(vals.into()))
         }
         Node::Lambda(args, body) => evaluate_lambda(None, args, body, ctx),
     }

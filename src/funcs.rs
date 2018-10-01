@@ -10,7 +10,8 @@ fn set_const(ctx: &mut Context, key: &str, val: f64) {
     ctx.set(key, Value::Number(val))
 }
 
-fn check_num_args(name: &str, args: &[Value], want: usize) -> Result<(), EvalError> {
+
+fn check_num_args<'a>(name: &str, args: &'a [Value], want: usize) -> Result<&'a [Value], EvalError> {
     let (x, y) = (want, args.len());
 
     if x != y {
@@ -25,25 +26,25 @@ fn check_num_args(name: &str, args: &[Value], want: usize) -> Result<(), EvalErr
 
         Err(EvalError(buffer))
     } else {
-        Ok(())
+        Ok(&args[..want])
     }
 }
 
 fn cast_function(arg: &Value) -> Result<&dyn Func, EvalError> {
     match arg {
         Value::Function(fun) => Ok(&**fun),
-        _ => Err(EvalError(format!(
+        _ => raise!(EvalError,
                     "invalid cast of {} to function",
-                    arg.type_name())))
+                    arg.type_name())
     }
 }
 
 fn cast_list(arg: &Value) -> Result<&[Value], EvalError> {
     match arg {
         Value::List(list) => Ok(list),
-        _ => Err(EvalError(format!(
+        _ => raise!(EvalError,
                     "invalid cast of {} to list",
-                    arg.type_name())))
+                    arg.type_name())
     }
 }
 
@@ -117,7 +118,7 @@ fn set_util(ctx: &mut Context) {
 
         set_closure(ctx, key, move |args| {
             if args.is_empty() {
-                return Err(EvalError(format!("{} of empty sequence", key)));
+                raise!(EvalError, "{} of empty sequence", key);
             }
 
             let args = match args {
@@ -133,11 +134,11 @@ fn set_util(ctx: &mut Context) {
                         best = arg.clone();
                     }
                 } else {
-                    return Err(EvalError(format!(
+                    raise!(EvalError,
                         "types '{}' and '{}' cannot be compared",
                         best.type_name(),
                         arg.type_name()
-                    )));
+                    );
                 }
             }
 
@@ -154,14 +155,20 @@ fn set_util(ctx: &mut Context) {
     });
 
     set_closure(ctx, "range", |args| {
-        check_num_args("range", args, 1)?;
-        let n = cast_float(&args[0])?;
+        let a = args.get(0).map(cast_float).transpose()?;
+        let b = args.get(1).map(cast_float).transpose()?;
+
+        let (a, b) = match (a, b) {
+            (Some(x), Some(y)) => (x, y),
+            (Some(x), None) => (0.0, x),
+            _ => (0.0, 0.0)
+        };
 
         let mut i = 0;
         let mut list = vec![];
 
-        while (i as f64) < n {
-            list.push(Value::Number(i as f64));
+        while a + (i as f64) < b {
+            list.push(Value::Number(a + (i as f64)));
             i += 1;
         }
 
@@ -176,7 +183,7 @@ fn set_util(ctx: &mut Context) {
         let out = list
             .iter()
             .map(|x| fun.call(&[x.clone()]))
-            .collect::<Result<Vec<Value>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Value::List(out.into()))
     });
@@ -189,7 +196,7 @@ fn set_util(ctx: &mut Context) {
         let n = steps.floor() as i64;
 
         if n <= 2 {
-            return Err(EvalError(format!("number of steps cannot be less than 2, got {}", steps)));
+            raise!(EvalError, "number of steps cannot be less than 2, got {}", steps);
         }
 
         let list = (0..n).map(|i| (i as f64) / ((n - 1) as f64))
@@ -207,6 +214,19 @@ fn set_util(ctx: &mut Context) {
 
         Ok(Value::List(list.into()))
     });
+
+    set_closure(ctx, "length", |args| {
+        check_num_args("length", args, 1)?;
+        let n = cast_list(&args[0])?.len();
+
+        Ok(Value::Number(n as f64))
+    });
+
+    //set_closure(ctx, "sum", |args| {
+    //    check_num_args("sum", args, 1)?;
+    //    let mut list = cast_list(&args[0])?.to_vec();
+    //    Ok(Value::List(list.into()))
+    //});
 }
 
 pub fn create() -> Context<'static> {

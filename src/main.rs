@@ -3,14 +3,19 @@
 
 extern crate itertools;
 
+#[macro_use]
+extern crate afl;
+
 use self::itertools::join;
 use std::io;
 use std::io::prelude::*;
 
+#[macro_use] mod util;
 mod eval;
 mod funcs;
 mod lexer;
 mod parser;
+
 
 use eval::{evaluate, Context, EvalError, Value};
 use lexer::tokenize;
@@ -41,7 +46,13 @@ fn format_value(val: &Value) -> String {
             Some(s) => format!("<function: {}>", s),
             None => "<function>".to_string(),
         },
-        Value::List(x) => format!("[{}]", join(x.iter().map(format_value), ", ")),
+        Value::List(x) => {
+            if x.len() < 50 {
+                format!("[{}]", join(x.iter().map(format_value), ", "))
+            } else {
+                format!("[{}, ...]", join(x[..45].iter().map(format_value), ", "))
+            }
+        }
     }
 }
 
@@ -55,8 +66,6 @@ fn execute_line(line: &str, ctx: &mut Context) {
             return;
         }
     };
-
-    println!("parsed: {:?}", root);
 
     let val = match evaluate(&root, ctx) {
         Ok(x) => x,
