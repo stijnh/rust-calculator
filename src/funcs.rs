@@ -10,24 +10,35 @@ fn set_const(ctx: &mut Context, key: &str, val: f64) {
     ctx.set(key, Value::Number(val))
 }
 
+fn check_args_n<'a>(name: &str, args: &'a [Value], n: usize) -> Result<&'a [Value], EvalError> {
+    let k = args.len();
 
-fn check_num_args<'a>(name: &str, args: &'a [Value], want: usize) -> Result<&'a [Value], EvalError> {
-    let (x, y) = (want, args.len());
-
-    if x != y {
-        let buffer = format!(
-            "{} expected {} argument{}, {} argument{} given",
-            name,
-            x,
-            if x == 1 { "" } else { "s" },
-            y,
-            if y == 1 { "" } else { "s" }
-        );
-
-        Err(EvalError(buffer))
-    } else {
-        Ok(&args[..want])
+    if k != n {
+        raise!(EvalError,
+               "{} expected {} argument{}, {} argument{} given", 
+               name, 
+               n,
+               if n == 1 {""} else {"s"},
+               k,
+               if k == 1 {""} else {"s"});
     }
+
+    Ok(args)
+}
+
+fn check_args_1<'a>(name: &str, args: &'a [Value]) -> Result<&'a Value, EvalError> {
+    let args = check_args_n(name, args, 1)?;
+    Ok(&args[0])
+}
+
+fn check_args_2<'a>(name: &str, args: &'a [Value]) -> Result<[&'a Value; 2], EvalError> {
+    let args = check_args_n(name, args, 2)?;
+    Ok([&args[0], &args[1]])
+}
+
+fn check_args_3<'a>(name: &str, args: &'a [Value]) -> Result<[&'a Value; 3], EvalError> {
+    let args = check_args_n(name, args, 3)?;
+    Ok([&args[0], &args[1], &args[2]])
 }
 
 fn cast_function(arg: &Value) -> Result<&dyn Func, EvalError> {
@@ -42,9 +53,7 @@ fn cast_function(arg: &Value) -> Result<&dyn Func, EvalError> {
 fn cast_list(arg: &Value) -> Result<&[Value], EvalError> {
     match arg {
         Value::List(list) => Ok(list),
-        _ => raise!(EvalError,
-                    "invalid cast of {} to list",
-                    arg.type_name())
+        _ => raise!(EvalError, "invalid cast of {} to list", arg.type_name())
     }
 }
 
@@ -53,9 +62,7 @@ fn cast_float(arg: &Value) -> Result<f64, EvalError> {
         Value::Number(x) => Ok(*x),
         Value::Boolean(true) => Ok(1.0),
         Value::Boolean(false) => Ok(0.0),
-        _ => Err(EvalError(format!(
-                    "invalid cast of {} to number",
-                    arg.type_name())))
+        _ => raise!(EvalError, "invalid cast of {} to number", arg.type_name())
     }
 }
 
@@ -78,7 +85,6 @@ where
     F: Fn(&[Value]) -> Result<Value, EvalError>,
 {
     let f = ClosureFunction(key.to_string(), fun);
-
     ctx.set(key, Value::Function(Rc::new(f)));
 }
 
@@ -88,8 +94,8 @@ where
 {
     let name = key.to_owned();
     set_closure(ctx, key, move |args: &[Value]| {
-        check_num_args(&name, args, 1)?;
-        let x = cast_float(&args[0])?;
+        let x = check_args_1(&name, args)?;
+        let x = cast_float(x)?;
 
         Ok(Value::Number(fun(x)))
     });
@@ -101,9 +107,9 @@ where
 {
     let name = key.to_owned();
     set_closure(ctx, key, move |args: &[Value]| {
-        check_num_args(&name, args, 2)?;
-        let x = cast_float(&args[0])?;
-        let y = cast_float(&args[1])?;
+        let [x, y] = check_args_2(&name, args)?;
+        let x = cast_float(x)?;
+        let y = cast_float(y)?;
 
         Ok(Value::Number(fun(x, y)))
     });
@@ -176,9 +182,9 @@ fn set_util(ctx: &mut Context) {
     });
 
     set_closure(ctx, "map", |args| {
-        check_num_args("map", args, 2)?;
-        let fun = cast_function(&args[0])?;
-        let list = cast_list(&args[1])?;
+        let [fun, list] = check_args_2("map", args)?;
+        let fun = cast_function(fun)?;
+        let list = cast_list(list)?;
 
         let out = list
             .iter()
@@ -189,10 +195,10 @@ fn set_util(ctx: &mut Context) {
     });
 
     set_closure(ctx, "linspace", |args| {
-        check_num_args("linspace", args, 3)?;
-        let lbnd = cast_float(&args[0])?;
-        let ubnd = cast_float(&args[1])?;
-        let steps = cast_float(&args[2])?;
+        let [lbnd, ubnd, steps] = check_args_3("linspace", args)?;
+        let lbnd = cast_float(lbnd)?;
+        let ubnd = cast_float(ubnd)?;
+        let steps = cast_float(steps)?;
         let n = steps.floor() as i64;
 
         if n <= 2 {
@@ -208,22 +214,22 @@ fn set_util(ctx: &mut Context) {
     });
 
     set_closure(ctx, "sort", |args| {
-        check_num_args("sort", args, 1)?;
-        let mut list = cast_list(&args[0])?.to_vec();
-        list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(cmp::Ordering::Equal));
+        let list = check_args_1("sort", args)?;
+        let mut vec = cast_list(list)?.to_vec();
+        vec.sort_by(|a, b| a.partial_cmp(b).unwrap_or(cmp::Ordering::Equal));
 
-        Ok(Value::List(list.into()))
+        Ok(Value::List(vec.into()))
     });
 
     set_closure(ctx, "length", |args| {
-        check_num_args("length", args, 1)?;
-        let n = cast_list(&args[0])?.len();
+        let list = check_args_1("length", args)?;
+        let n = cast_list(list)?.len();
 
         Ok(Value::Number(n as f64))
     });
 
     //set_closure(ctx, "sum", |args| {
-    //    check_num_args("sum", args, 1)?;
+    //    check_args_n("sum", args, 1)?;
     //    let mut list = cast_list(&args[0])?.to_vec();
     //    Ok(Value::List(list.into()))
     //});
