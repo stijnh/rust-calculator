@@ -1,7 +1,7 @@
 extern crate rand;
 
 use self::rand::random;
-use eval::{Context, EvalError, Func, Value};
+use eval::{Context, EvalError, Callable, Value};
 use std::cmp;
 use std::f64::{self, consts};
 use std::rc::Rc;
@@ -41,7 +41,7 @@ fn check_args_3<'a>(name: &str, args: &'a [Value]) -> Result<[&'a Value; 3], Eva
     Ok([&args[0], &args[1], &args[2]])
 }
 
-fn cast_function(arg: &Value) -> Result<&dyn Func, EvalError> {
+fn cast_function(arg: &Value) -> Result<&dyn Callable, EvalError> {
     match arg {
         Value::Function(fun) => Ok(&**fun),
         _ => raise!(EvalError,
@@ -67,7 +67,7 @@ fn cast_float(arg: &Value) -> Result<f64, EvalError> {
 }
 
 struct ClosureFunction<F>(String, F);
-impl<F> Func for ClosureFunction<F>
+impl<F> Callable for ClosureFunction<F>
 where
     F: Fn(&[Value], &mut Context) -> Result<Value, EvalError>,
 {

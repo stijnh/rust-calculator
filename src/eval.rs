@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::{cmp, fmt};
 use std::cell::RefCell;
 
-pub trait Func {
+pub trait Callable {
     fn name(&self) -> Option<&str>;
     fn call(&self, args: &[Value], ctx: &mut Context) -> Result<Value, EvalError>;
 }
@@ -20,7 +20,7 @@ struct ClosureFunc {
     body: RefCell<Node>,
 }
 
-impl Func for ClosureFunc {
+impl Callable for ClosureFunc {
     fn name(&self) -> Option<&str> {
         match self.name {
             Some(ref x) => Some(&x),
@@ -48,7 +48,7 @@ pub enum Value {
     Number(f64),
     Boolean(bool),
     List(Rc<[Value]>),
-    Function(Rc<dyn Func>),
+    Function(Rc<dyn Callable>),
 }
 
 impl Value {
@@ -156,7 +156,7 @@ impl<'a> Context<'a> {
         self.scope.insert(key.into(), val);
     }
 
-    pub fn call(&mut self, fun: &dyn Func, args: &[Value]) -> Result<Value, EvalError> {
+    pub fn call(&mut self, fun: &dyn Callable, args: &[Value]) -> Result<Value, EvalError> {
         if self.stack.len() >= 512 {
             raise!(EvalError, "stack overflow, call depth cannot exceed {}", self.stack.len())
         }
