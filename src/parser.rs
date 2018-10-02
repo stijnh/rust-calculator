@@ -15,7 +15,8 @@ pub enum Node {
     List(Vec<Node>),
     Var(String),
     VarDef(String, Box<Node>),
-    FunDef(String, Vec<String>, Box<Node>)
+    FunDef(String, Vec<String>, Box<Node>),
+    Range(Option<Box<Node>>, Option<Box<Node>>, Option<Box<Node>>)
 }
 
 #[derive(Debug)]

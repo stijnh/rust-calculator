@@ -144,14 +144,12 @@ impl<'a> Context<'a> {
 
     pub fn get(&self, key: &str) -> Option<Value> {
         if let Some(x) = self.scope.get(key) {
-            return Some(x.clone());
+            Some(x.clone())
+        } else if let Some(p) = self.parent {
+            p.get(key)
+        } else {
+            None
         }
-
-        if let Some(p) = self.parent {
-            return p.get(key);
-        }
-
-        None
     }
 
     pub fn set(&mut self, key: &str, val: Value) {
@@ -330,6 +328,11 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             }
             Node::List(vals)
         }
+        Node::Range(lbnd, ubnd, step) => Node::Range(
+            lbnd.as_ref().map(|x| bind_vars(x, bound, ctx)).transpose()?.map(Box::new),
+            ubnd.as_ref().map(|x| bind_vars(x, bound, ctx)).transpose()?.map(Box::new),
+            step.as_ref().map(|x| bind_vars(x, bound, ctx)).transpose()?.map(Box::new),
+        ),
         Node::Immediate(_) => node.clone(),
         Node::VarDef(_, _) | Node::FunDef(_, _, _) => {
             raise!(EvalError, "assignment within lambda is not allowed")
@@ -433,6 +436,9 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             let lhs = evaluate_node(lhs, ctx)?;
             let rhs = evaluate_node(rhs, ctx)?;
             evaluate_index(&lhs, &rhs)
+        }
+        Node::Range(..) => {
+            raise!(EvalError, "Range syntax is only supported as list index")
         }
         Node::List(args) => {
             let mut vals = vec![];

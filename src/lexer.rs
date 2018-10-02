@@ -33,6 +33,7 @@ pub enum Token {
     Comma,
     Assign,
     Arrow,
+    Colon,
     Unknown(char),
     Number(String),
     Ident(String),
@@ -80,6 +81,7 @@ impl Token {
             Token::Then => "then",
             Token::Else => "else",
             Token::End => "<end>",
+            Token::Colon => ":"
         }.into()
     }
 }
@@ -182,6 +184,7 @@ impl Lexer {
             ')' => Token::RightParen,
             ',' => Token::Comma,
             '=' => Token::Assign,
+            ':' => Token::Colon,
             '+' => Token::Operator(Op::Add),
             '-' => Token::Operator(Op::Sub),
             '*' => Token::Operator(Op::Mul),
@@ -306,7 +309,7 @@ mod test {
 
     #[test]
     fn test_tokens() {
-        let string = "( ) [ ] , = => ?";
+        let string = "( ) [ ] , = => : ?";
         let tokens = vec![
             Token::LeftParen,
             Token::RightParen,
@@ -315,6 +318,7 @@ mod test {
             Token::Comma,
             Token::Assign,
             Token::Arrow,
+            Token::Colon,
             Token::Unknown('?'),
         ];
 

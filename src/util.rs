@@ -2,14 +2,17 @@
 macro_rules! raise {
     ($x:expr) => {
         {
-            Err($x)?;
-            panic!("unreachable code")
+            ::std::result::Result::Err($x)?;
+            panic!("unreachable code");
         }
     };
-    ($x:path, $msg:expr) => {
-        raise!($x($msg.into()))
+    ($x:expr, $msg:expr) => {
+        {
+            let msg = $msg.into();
+            raise!($x(msg));
+        }
     };
-    ($x:path, $format:expr, $( $arg:expr),* ) => {
+    ($x:expr, $format:expr, $( $arg:expr),* ) => {
         raise!($x, format!($format, $($arg),*))
     };
 }
