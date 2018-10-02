@@ -267,6 +267,7 @@ pub fn create() -> Context<'static> {
         set_unary(c, "sqrt", |x| x.sqrt());
         set_unary(c, "exp", |x| x.exp());
         set_unary(c, "float", |x| x);
+        set_unary(c, "sign", |x| x.signum());
 
         set_binary(c, "pow", |x, y| x.powf(y));
         set_binary(c, "log", |x, y| x.log(y));
