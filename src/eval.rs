@@ -238,10 +238,9 @@ fn evaluate_apply(fun: &Value, args: &[Value], ctx: &mut Context) -> Result<Valu
     if let Value::Function(f) = fun {
         ctx.call(f.deref(), args)
     } else {
-        Err(EvalError(format!(
+        raise!(EvalError,
             "value of type {} is not callable",
-            fun.type_name()
-        )))
+            fun.type_name())
     }
 }
 
@@ -257,10 +256,9 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
 
             match list.get(i as usize) {
                 Some(v) => Ok(v.clone()),
-                _ => Err(EvalError(format!(
+                _ => raise!(EvalError,
                     "index {} is out of bounds for list of size {}",
-                    i, n
-                ))),
+                    i, n)
             }
         }
         (list, Value::List(indices)) => {
@@ -272,14 +270,12 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
 
             Ok(Value::List(result.into()))
         }
-        (Value::List(_), x) => Err(EvalError(format!(
+        (Value::List(_), x) => raise!(EvalError,
             "value of type {} cannot be used as index",
-            x.type_name()
-        ))),
-        (x, _) => Err(EvalError(format!(
+            x.type_name()),
+        (x, _) => raise!(EvalError,
             "value of type {} cannot be indexed",
-            x.type_name()
-        ))),
+            x.type_name())
     }
 }
 
@@ -387,7 +383,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             if let Some(val) = ctx.get(var) {
                 Ok(val)
             } else {
-                Err(EvalError(format!("undefined variable '{}'", var)))
+                raise!(EvalError, "undefined variable '{}'", var)
             }
         }
         Node::BinOp(Op::And, lhs, rhs) => {

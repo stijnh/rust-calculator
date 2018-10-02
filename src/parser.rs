@@ -26,7 +26,7 @@ pub struct ParseError {
 }
 
 fn unexpected_token(lexer: &Lexer) -> Result<Node, ParseError> {
-    Err(ParseError {
+    raise!(ParseError {
         token: lexer.peek(),
         span: lexer.span(),
     })
