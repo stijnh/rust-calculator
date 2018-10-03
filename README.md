@@ -16,18 +16,18 @@ The calculator supports four value types:
 Supports the following operations:
 
 * Arithmetic
- * Addition: `a + b`
- * Subtraction: `a - b`
- * Multiplication: `a * b`
- * Division: `a / b`
+    * Addition: `a + b`
+    * Subtraction: `a - b`
+    * Multiplication: `a * b`
+    * Division: `a / b`
 * Relational
- * Equal: `a == b`, `a != b`
- * Compare: `a < b`, `a <= b`
+    * Equal: `a == b`, `a != b`
+    * Compare: `a < b`, `a <= b`
 * Logic
- * Conjunction: `a and b`
- * Disjunction: `a or b`
- * Negation: `not a`
- * Ternary: `a if b else c`
+    * Conjunction: `a and b`
+    * Disjunction: `a or b`
+    * Negation: `not a`
+    * Ternary: `a if b else c`
 
 
 ## Defining functions
