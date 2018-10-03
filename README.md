@@ -1,26 +1,56 @@
 # Rust calculator
 
-Simple command-line based calculator written in Rust. Supports many arithmetic functions, boolean logic, lists, and basic lambda functions.
+Simple command-line based calculator written in Rust. Supports many arithmetic functions, boolean logic, lists, and basic functions/lambdas.
 
 ## Value types
 
-Supports four value types:
+The calculator supports four value types:
 
-* Numbers: `1`, `3.2`, `-200` 
-* Booleans: `true` and `false`
-* Lists: `[1, true, -4.1]`
-* Functions
+* Numbers (examples: `1`, `3.2`, `-200`, `1.3333`) 
+* Booleans (`true` and `false`)
+* Lists (`[1, true, -4.1]`, `[]`, `[sin, cos, tan]`, `[true, false]`)
+* Functions (pre-defined and user-defined)
+
+## Arithmetic Options
+
+Supports the following operations:
+
+* Arithmetic
+ * Addition: `a + b`
+ * Subtraction: `a - b`
+ * Multiplication: `a * b`
+ * Division: `a / b`
+* Relational
+ * Equal: `a == b`, `a != b`
+ * Compare: `a < b`, `a <= b`
+* Logic
+ * Conjunction: `a and b`
+ * Disjunction: `a or b`
+ * Negation: `not a`
+ * Ternary: `a if b else c`
 
 
-## User-defined functions
+## Defining functions
 Functions are first-call citizens and can be used like any other value.
-They can be defined using the lambda syntax.
+They can be passed around like any other value, making thing like this possible.
+
+```
+>>> foo = sin == cos
+  false
+>>> index = -(sin if foo else cos)(pi)
+  1  
+>>> [sin, cos][index](pi)
+  -1
+```
+
+
+New functions can be defined using the lambda syntax.
 
 ```
 >>> foo = x => x + 1
 ```
 
-Alternatively, they can be defined using the following syntax.
+Alternatively, they can be defined using the following special syntax.
 
 ```
 >>> foo(x) = x + 1
@@ -56,7 +86,7 @@ The following Python-like utility functions are included.
 
 * `min(...)`: minimum of arguments.
 * `max(...)`: maximum of arguments.
-* `rand()`, `rand(stop)`, `rand(start, stop)`: random float (default start is 0.0, stop is 1.0).
+* `rand()`, `rand(stop)`, `rand(start, stop)`: random float (default range is 0.0 to 1.0).
 * `range(stop)`, `range(start, stop)`: list `[start, start+1, ..., stop-1, stop]`.
 * `map(f, list)`: applies `f` to each element of `list`.
 * `sort(list)`: sort elements of `list`
