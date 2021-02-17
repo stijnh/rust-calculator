@@ -52,10 +52,6 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn from_number(x: f64) -> Value {
-        Value::Number(x)
-    }
-
     pub fn as_bool(&self) -> bool {
         match self {
             Value::Boolean(x) => *x,
@@ -292,16 +288,16 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
         }
         Node::Lambda(args, body) => {
             let new_bound: Vec<_> = chain(args, bound).cloned().collect();
-            Node::Lambda(args.clone(), box bind_vars(body, &new_bound, ctx)?)
+            Node::Lambda(args.clone(), Box::new(bind_vars(body, &new_bound, ctx)?))
         }
         Node::BinOp(op, x, y) => Node::BinOp(
             *op,
-            box bind_vars(x, bound, ctx)?,
-            box bind_vars(y, bound, ctx)?,
+            Box::new(bind_vars(x, bound, ctx)?),
+            Box::new(bind_vars(y, bound, ctx)?),
         ),
-        Node::MonOp(op, x) => Node::MonOp(*op, box bind_vars(x, bound, ctx)?),
+        Node::MonOp(op, x) => Node::MonOp(*op, Box::new(bind_vars(x, bound, ctx)?)),
         Node::Apply(fun, args) => {
-            let fun = box bind_vars(fun, bound, ctx)?;
+            let fun = Box::new(bind_vars(fun, bound, ctx)?);
             let mut vals = vec![];
             for arg in args {
                 vals.push(bind_vars(arg, bound, ctx)?);
@@ -309,13 +305,13 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             Node::Apply(fun, vals)
         }
         Node::Index(lhs, rhs) => Node::Index(
-            box bind_vars(lhs, bound, ctx)?,
-            box bind_vars(rhs, bound, ctx)?,
+            Box::new(bind_vars(lhs, bound, ctx)?),
+            Box::new(bind_vars(rhs, bound, ctx)?),
         ),
         Node::Cond(cond, lhs, rhs) => Node::Cond(
-            box bind_vars(cond, bound, ctx)?,
-            box bind_vars(lhs, bound, ctx)?,
-            box bind_vars(rhs, bound, ctx)?,
+            Box::new(bind_vars(cond, bound, ctx)?),
+            Box::new(bind_vars(lhs, bound, ctx)?),
+            Box::new(bind_vars(rhs, bound, ctx)?),
         ),
         Node::List(args) => {
             let mut vals = vec![];

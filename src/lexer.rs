@@ -1,4 +1,3 @@
-use std::fmt;
 use std::iter::{Fuse, Peekable};
 use std::str::Chars;
 
@@ -161,20 +160,18 @@ impl Lexer {
 
         stream.next();
 
-        {
+        'a: loop {
             let tok = match (c, stream.peek()) {
                 ('=', '=') => Token::Operator(Op::Eq),
                 ('!', '=') => Token::Operator(Op::Neq),
                 ('<', '=') => Token::Operator(Op::Lte),
                 ('>', '=') => Token::Operator(Op::Gte),
                 ('=', '>') => Token::Arrow,
-                _ => Token::End,
+                _ => break 'a,
             };
 
-            if tok != Token::End {
-                stream.next();
-                return tok;
-            }
+            stream.next();
+            return tok;
         }
 
         match c {

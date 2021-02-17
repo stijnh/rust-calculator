@@ -165,7 +165,7 @@ fn parse_cond(lexer: &mut Lexer) -> Result<Node, ParseError> {
         expect_token(lexer, &Token::Else)?;
         let rhs = parse_expr(lexer)?;
 
-        lhs = Node::Cond(box cond, box lhs, box rhs);
+        lhs = Node::Cond(Box::new(cond), Box::new(lhs), Box::new(rhs));
     }
 }
 
@@ -246,10 +246,18 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
             let body = parse_statement(lexer)?;
             match body {
                 Node::Lambda(args, body) => Node::FunDef(var, args, body),
-                body => Node::VarDef(var, box body)
+                body => Node::VarDef(var, Box::new(body))
             }
         }
-        (Node::Apply(box Node::Var(var), args), Token::Assign) => {
+        (Node::Apply(lhs, args), Token::Assign) => {
+            let var = match *lhs {
+                Node::Var(var) => var,
+                _ => {
+                    unexpected_prev_token(lexer)?;
+                    unreachable!();
+                },
+            };
+
             let mut params = vec![];
 
             for arg in args {
@@ -261,7 +269,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
             }
 
             let body = parse_statement(lexer)?;
-            Node::FunDef(var, params, box body)
+            Node::FunDef(var, params, Box::new(body))
         }
         _ => unexpected_prev_token(lexer)?
     })

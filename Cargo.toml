@@ -6,3 +6,4 @@ authors = ["stijnh <mail@stijnh.nl>"]
 [dependencies]
 rand="0.5.5"
 itertools="0.7.8"
+afl="0.4"

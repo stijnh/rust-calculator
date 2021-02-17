@@ -1,11 +1,9 @@
-#![feature(box_syntax, box_patterns)]
-#![feature(transpose_result)]
-
 extern crate itertools;
 
 #[macro_use]
 extern crate afl;
 
+use std::ops::Deref;
 use self::itertools::join;
 use std::io;
 use std::io::prelude::*;
@@ -21,20 +19,25 @@ use eval::{evaluate, Context, EvalError, Value};
 use lexer::tokenize;
 use parser::{parse, ParseError, Span};
 
+fn clean_input(line: &str) -> String {
+    line.chars().map(|c| if c.is_ascii() && !c.is_ascii_control() {c} else {'?'}).collect()
+}
+
 fn print_parse_error(line: &str, err: &ParseError) {
     eprintln!("{}", line);
 
-    let Span(a, b) = err.span;
+    let t = err.token.name();
 
+    let Span(a, b) = err.span;
     let mut msg = String::new();
     (0..a).for_each(|_| msg.push(' '));
     (a..b).for_each(|_| msg.push('^'));
     eprintln!("{}", msg);
 
     if a + 1 >= b {
-        eprintln!("invalid syntax at {}", a);
+        eprintln!("invalid token '{}' at position {}", t, a);
     } else {
-        eprintln!("invalid syntax at {}:{}", a, b - 1);
+        eprintln!("invalid token '{}' at position {}..{}", t, a, b - 1);
     }
 }
 
@@ -79,7 +82,7 @@ fn execute_line(line: &str, ctx: &mut Context) {
 }
 
 fn main() {
-    let exit_cmds = vec!["exit", "quit"];
+    let exit_cmds = ["exit", "quit"];
     let input = io::stdin();
     let mut output = io::stdout();
 
@@ -93,8 +96,8 @@ fn main() {
         let mut buffer = String::new();
         input.read_line(&mut buffer).unwrap();
 
-        let line = &buffer.trim();
-        if buffer.is_empty() || exit_cmds.contains(line) {
+        let line = clean_input(&buffer.trim());
+        if buffer.is_empty() || exit_cmds.contains(&&*line) {
             break;
         }
 
@@ -102,6 +105,6 @@ fn main() {
             continue;
         }
 
-        execute_line(line, &mut ctx);
+        execute_line(&line, &mut ctx);
     }
 }
