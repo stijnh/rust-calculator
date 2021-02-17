@@ -3,24 +3,32 @@ extern crate itertools;
 #[macro_use]
 extern crate afl;
 
-use std::ops::Deref;
 use self::itertools::join;
 use std::io;
 use std::io::prelude::*;
+use std::ops::Deref;
 
-#[macro_use] mod util;
+#[macro_use]
+mod util;
 mod eval;
 mod funcs;
 mod lexer;
 mod parser;
-
 
 use eval::{evaluate, Context, EvalError, Value};
 use lexer::tokenize;
 use parser::{parse, ParseError, Span};
 
 fn clean_input(line: &str) -> String {
-    line.chars().map(|c| if c.is_ascii() && !c.is_ascii_control() {c} else {'?'}).collect()
+    line.chars()
+        .map(|c| {
+            if c.is_ascii() && !c.is_ascii_control() {
+                c
+            } else {
+                '?'
+            }
+        })
+        .collect()
 }
 
 fn print_parse_error(line: &str, err: &ParseError) {

@@ -56,7 +56,8 @@ impl Op {
             Op::Not => "not",
             Op::And => "and",
             Op::Or => "or",
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -80,8 +81,9 @@ impl Token {
             Token::Then => "then",
             Token::Else => "else",
             Token::End => "<end>",
-            Token::Colon => ":"
-        }.into()
+            Token::Colon => ":",
+        }
+        .into()
     }
 }
 
@@ -298,7 +300,8 @@ mod test {
             Op::Gt,
             Op::Lte,
             Op::Gte,
-        ].into_iter()
+        ]
+        .into_iter()
         .map(|x| Token::Operator(x));
 
         test_match(string, tokens);

@@ -1,7 +1,7 @@
 extern crate rand;
 
 use self::rand::random;
-use eval::{Context, EvalError, Callable, Value};
+use eval::{Callable, Context, EvalError, Value};
 use std::cmp;
 use std::f64::{self, consts};
 use std::rc::Rc;
@@ -14,13 +14,15 @@ fn check_args_n<'a>(name: &str, args: &'a [Value], n: usize) -> Result<&'a [Valu
     let k = args.len();
 
     if k != n {
-        raise!(EvalError,
-               "{} expected {} argument{}, {} argument{} given", 
-               name, 
-               n,
-               if n == 1 {""} else {"s"},
-               k,
-               if k == 1 {""} else {"s"});
+        raise!(
+            EvalError,
+            "{} expected {} argument{}, {} argument{} given",
+            name,
+            n,
+            if n == 1 { "" } else { "s" },
+            k,
+            if k == 1 { "" } else { "s" }
+        );
     }
 
     Ok(args)
@@ -44,16 +46,14 @@ fn check_args_3<'a>(name: &str, args: &'a [Value]) -> Result<[&'a Value; 3], Eva
 fn cast_function(arg: &Value) -> Result<&dyn Callable, EvalError> {
     match arg {
         Value::Function(fun) => Ok(&**fun),
-        _ => raise!(EvalError,
-                    "invalid cast of {} to function",
-                    arg.type_name())
+        _ => raise!(EvalError, "invalid cast of {} to function", arg.type_name()),
     }
 }
 
 fn cast_list(arg: &Value) -> Result<&[Value], EvalError> {
     match arg {
         Value::List(list) => Ok(list),
-        _ => raise!(EvalError, "invalid cast of {} to list", arg.type_name())
+        _ => raise!(EvalError, "invalid cast of {} to list", arg.type_name()),
     }
 }
 
@@ -62,7 +62,7 @@ fn cast_float(arg: &Value) -> Result<f64, EvalError> {
         Value::Number(x) => Ok(*x),
         Value::Boolean(true) => Ok(1.0),
         Value::Boolean(false) => Ok(0.0),
-        _ => raise!(EvalError, "invalid cast of {} to number", arg.type_name())
+        _ => raise!(EvalError, "invalid cast of {} to number", arg.type_name()),
     }
 }
 
@@ -129,7 +129,7 @@ fn set_util(ctx: &mut Context) {
 
             let args = match args {
                 [Value::List(list)] => list,
-                x => x
+                x => x,
             };
 
             let mut best = args[0].clone();
@@ -140,7 +140,8 @@ fn set_util(ctx: &mut Context) {
                         best = arg.clone();
                     }
                 } else {
-                    raise!(EvalError,
+                    raise!(
+                        EvalError,
                         "types '{}' and '{}' cannot be compared",
                         best.type_name(),
                         arg.type_name()
@@ -159,7 +160,7 @@ fn set_util(ctx: &mut Context) {
         let (a, b) = match (a, b) {
             (Some(x), Some(y)) => (x, y),
             (Some(x), None) => (0.0, x),
-            _ => (0.0, 1.0)
+            _ => (0.0, 1.0),
         };
 
         let out = (b - a) * random::<f64>() + a;
@@ -173,7 +174,7 @@ fn set_util(ctx: &mut Context) {
         let (a, b) = match (a, b) {
             (Some(x), Some(y)) => (x, y),
             (Some(x), None) => (0.0, x),
-            _ => (0.0, 0.0)
+            _ => (0.0, 0.0),
         };
 
         let mut i = 0;
@@ -208,13 +209,18 @@ fn set_util(ctx: &mut Context) {
         let n = steps.floor() as i64;
 
         if n <= 2 {
-            raise!(EvalError, "number of steps cannot be less than 2, got {}", steps);
+            raise!(
+                EvalError,
+                "number of steps cannot be less than 2, got {}",
+                steps
+            );
         }
 
-        let list = (0..n).map(|i| (i as f64) / ((n - 1) as f64))
-                         .map(|v| (1.0 - v) * lbnd + v * ubnd)
-                         .map(|v| Value::Number(v))
-                         .collect::<Vec<_>>();
+        let list = (0..n)
+            .map(|i| (i as f64) / ((n - 1) as f64))
+            .map(|v| (1.0 - v) * lbnd + v * ubnd)
+            .map(|v| Value::Number(v))
+            .collect::<Vec<_>>();
 
         Ok(Value::List(list.into()))
     });

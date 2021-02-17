@@ -16,7 +16,7 @@ pub enum Node {
     Var(String),
     VarDef(String, Box<Node>),
     FunDef(String, Vec<String>, Box<Node>),
-    Range(Option<Box<Node>>, Option<Box<Node>>, Option<Box<Node>>)
+    Range(Option<Box<Node>>, Option<Box<Node>>, Option<Box<Node>>),
 }
 
 #[derive(Debug)]
@@ -169,7 +169,6 @@ fn parse_cond(lexer: &mut Lexer) -> Result<Node, ParseError> {
     }
 }
 
-
 fn parse_lambda(lexer: &mut Lexer) -> Result<Node, ParseError> {
     let out = match (lexer.next(), lexer.next(), lexer.next(), lexer.next()) {
         // Case 1: x => body
@@ -246,7 +245,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
             let body = parse_statement(lexer)?;
             match body {
                 Node::Lambda(args, body) => Node::FunDef(var, args, body),
-                body => Node::VarDef(var, Box::new(body))
+                body => Node::VarDef(var, Box::new(body)),
             }
         }
         (Node::Apply(lhs, args), Token::Assign) => {
@@ -255,7 +254,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
                 _ => {
                     unexpected_prev_token(lexer)?;
                     unreachable!();
-                },
+                }
             };
 
             let mut params = vec![];
@@ -271,7 +270,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Node, ParseError> {
             let body = parse_statement(lexer)?;
             Node::FunDef(var, params, Box::new(body))
         }
-        _ => unexpected_prev_token(lexer)?
+        _ => unexpected_prev_token(lexer)?,
     })
 }
 

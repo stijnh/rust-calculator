@@ -1,13 +1,13 @@
 extern crate itertools;
 
-use std::ops::Deref;
 use self::itertools::chain;
 use parser::{Node, Op};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::f64::EPSILON;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::{cmp, fmt};
-use std::cell::RefCell;
 
 pub trait Callable {
     fn name(&self) -> Option<&str>;
@@ -41,7 +41,6 @@ impl Callable for ClosureFunc {
         evaluate_node(&self.body.borrow(), &mut ctx)
     }
 }
-
 
 #[derive(Clone)]
 pub enum Value {
@@ -154,7 +153,11 @@ impl<'a> Context<'a> {
 
     pub fn call(&mut self, fun: &dyn Callable, args: &[Value]) -> Result<Value, EvalError> {
         if self.stack.len() >= 512 {
-            raise!(EvalError, "stack overflow, call depth cannot exceed {}", self.stack.len())
+            raise!(
+                EvalError,
+                "stack overflow, call depth cannot exceed {}",
+                self.stack.len()
+            )
         }
 
         let name = fun.name().unwrap_or("anonymous function").to_string();
@@ -199,11 +202,13 @@ fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> 
         (Op::Mul, B(x), B(y)) => B(x && y),
         (Op::Add, B(x), B(y)) => B(x || y),
         _ => {
-            raise!(EvalError,
-                   "invalid binary operator '{}' for types {} and {}",
-                   op.name(),
-                    lhs.type_name(),
-                    rhs.type_name())
+            raise!(
+                EvalError,
+                "invalid binary operator '{}' for types {} and {}",
+                op.name(),
+                lhs.type_name(),
+                rhs.type_name()
+            )
         }
     };
 
@@ -219,7 +224,8 @@ fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
         (Op::Sub, N(x)) => N(-*x),
         (Op::Not, x) => B(!x.as_bool()),
         _ => {
-            raise!(EvalError,
+            raise!(
+                EvalError,
                 "invalid unary operator '{}' for type {}",
                 op.name(),
                 arg.type_name()
@@ -234,9 +240,11 @@ fn evaluate_apply(fun: &Value, args: &[Value], ctx: &mut Context) -> Result<Valu
     if let Value::Function(f) = fun {
         ctx.call(f.deref(), args)
     } else {
-        raise!(EvalError,
+        raise!(
+            EvalError,
             "value of type {} is not callable",
-            fun.type_name())
+            fun.type_name()
+        )
     }
 }
 
@@ -252,9 +260,12 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
 
             match list.get(i as usize) {
                 Some(v) => Ok(v.clone()),
-                _ => raise!(EvalError,
+                _ => raise!(
+                    EvalError,
                     "index {} is out of bounds for list of size {}",
-                    i, n)
+                    i,
+                    n
+                ),
             }
         }
         (list, Value::List(indices)) => {
@@ -266,12 +277,16 @@ fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
 
             Ok(Value::List(result.into()))
         }
-        (Value::List(_), x) => raise!(EvalError,
+        (Value::List(_), x) => raise!(
+            EvalError,
             "value of type {} cannot be used as index",
-            x.type_name()),
-        (x, _) => raise!(EvalError,
+            x.type_name()
+        ),
+        (x, _) => raise!(
+            EvalError,
             "value of type {} cannot be indexed",
-            x.type_name())
+            x.type_name()
+        ),
     }
 }
 
@@ -321,9 +336,18 @@ fn bind_vars(node: &Node, bound: &[String], ctx: &Context) -> Result<Node, EvalE
             Node::List(vals)
         }
         Node::Range(lbnd, ubnd, step) => Node::Range(
-            lbnd.as_ref().map(|x| bind_vars(x, bound, ctx)).transpose()?.map(Box::new),
-            ubnd.as_ref().map(|x| bind_vars(x, bound, ctx)).transpose()?.map(Box::new),
-            step.as_ref().map(|x| bind_vars(x, bound, ctx)).transpose()?.map(Box::new),
+            lbnd.as_ref()
+                .map(|x| bind_vars(x, bound, ctx))
+                .transpose()?
+                .map(Box::new),
+            ubnd.as_ref()
+                .map(|x| bind_vars(x, bound, ctx))
+                .transpose()?
+                .map(Box::new),
+            step.as_ref()
+                .map(|x| bind_vars(x, bound, ctx))
+                .transpose()?
+                .map(Box::new),
         ),
         Node::Immediate(_) => node.clone(),
         Node::VarDef(_, _) | Node::FunDef(_, _, _) => {
@@ -361,7 +385,7 @@ fn evaluate_node(node: &Node, ctx: &mut Context) -> Result<Value, EvalError> {
             let dummy = ClosureFunc {
                 name: Some(var.clone()),
                 params: params.to_owned(),
-                body: Node::Var("?".into()).into()
+                body: Node::Var("?".into()).into(),
             };
             let cell = Rc::new(dummy);
             let fun = Value::Function(cell.clone());
